@@ -1,11 +1,56 @@
-# IPRO Ticketing System Automation
+# Hawk: Office of Student Life chatbot
 
-This IPRO project is building Hawk, a student-facing OTS support chatbot. After a student describes an issue, Hawk offers two choices: get troubleshooting steps or email OTS. The student can review the email and confirm sending directly from Hawk through an approved Microsoft 365 mailbox. This reflects the October 1 scope update to the original backend guide.
+Hawk is a student-facing chatbot for the Illinois Tech Office of Student Life (OSL). It answers questions about student organizations, funding, events, and space reservations using the OSL Student Organization Handbook. It retrieves relevant passages from a local ChromaDB index and generates the answer with a local Ollama model. Students can also get a draft email to OSL to review and send themselves; Hawk never sends mail.
 
-## Repository contents
+## Layout
 
-- [`IIT_Chatbot_UI_Design/`](IIT_Chatbot_UI_Design/) contains the connected Hawk browser interface and the original design reference.
-- [`ots-chatbot-backend/`](ots-chatbot-backend/README.md) contains the working API, general troubleshooting flow, and Microsoft Graph email integration. Follow its README to run locally and configure the sending account.
-- [`HAWK_BACKEND_PLAN.md`](HAWK_BACKEND_PLAN.md) summarizes the agreed chatbot backend scope, API contract, and next integration milestone.
+- `IIT_Chatbot_UI_Design/`: browser frontend (`index.html`, `css/`, `js/`), served by the API. `hawk.js`, `hawk.css`, and the `.dc.html` file are an older design kept for reference and are not loaded.
+- `ots-chatbot-backend/`: FastAPI backend.
+  - `api/`: app factory, routes, schemas, and `RagService`.
+  - `departments/`: per-department `config.yaml` and `docs/`. Only `osl/` exists. Select one with `HAWK_DEPT`.
+  - `retrieval/`: ChromaDB index and retrieval.
+  - `llm/`: Ollama client.
+  - `escalation/`: email draft builder.
+  - `tests/`: API tests.
 
-Sending requires a configured, approved Microsoft 365 application and mailbox. Without that configuration the UI explains that sending is unavailable. Students provide a reply email address only on the review screen and explicitly confirm the submission. Verified OTS retrieval, Ollama, and model-driven diagnosis remain future integration work; the current self-service path gives labeled general checks. The former ticket sandbox has been removed from main.
+## Run locally
+
+Requires Python 3.11+ and [Ollama](https://ollama.com).
+
+```
+python -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m uvicorn api.main:app --app-dir ots-chatbot-backend --port 8000
+```
+
+On Windows use `.\.venv\Scripts\python.exe` in place of `.venv/bin/python`.
+
+Open <http://127.0.0.1:8000/> for the chat UI and <http://127.0.0.1:8000/docs> for the API.
+
+On startup the app reads the PDF/TXT files in `departments/osl/docs/`, splits them into paragraphs, and indexes them in `ots-chatbot-backend/.chroma/` (git-ignored, rebuilt as needed).
+
+## Model
+
+`departments/osl/config.yaml` sets the Ollama model (currently `llama3.2`) and the system prompt. Start Ollama and make sure the model exists (`ollama pull llama3.2`, or register a fine-tuned GGUF with `ollama create`). GGUF files are git-ignored; do not commit them.
+
+## API
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/health` | Status and loaded department |
+| `GET /api/dept` | Department name and contact email |
+| `POST /api/chat` | Answer from the conversation (`{"messages": [{"role": "user", "text": "..."}]}`) |
+| `POST /api/chat/stream` | Same, streamed as newline-delimited JSON |
+| `POST /api/escalate` | Draft an email to OSL, or ask one clarifying question |
+
+Limits: 60 messages, 4,000 characters per message. Invalid requests return 422; failures return 503. Set `HAWK_ALLOWED_ORIGINS` (see `.env.example`) to allow a frontend on another origin.
+
+## Data handling
+
+Chat history stays in the browser tab's `sessionStorage`; the server does not store it. Email drafts mask email addresses and A-number student IDs. Use fictional questions during development.
+
+## Tests
+
+```
+.venv/bin/python -m pytest ots-chatbot-backend/tests -q
+```
