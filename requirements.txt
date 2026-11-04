@@ -2,7 +2,6 @@ fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
 pydantic>=2.9,<3
 httpx>=0.27,<1
-pytest>=8,<9
 # 1.x ships prebuilt packages for Windows and Mac; 0.x needs C++ build tools on Windows.
 chromadb>=1.5,<2
 pypdf>=4,<6

@@ -7,7 +7,7 @@ Hawk is a student-facing chatbot for the Illinois Tech Office of Student Life (O
 - `IIT_Chatbot_UI_Design/`: browser frontend (`index.html`, `css/`, `js/`), served by the API. `hawk.js`, `hawk.css`, and the `.dc.html` file are an older design kept for reference and are not loaded.
 - `ots-chatbot-backend/`: FastAPI backend.
   - `api/`: app factory, routes, schemas, and `RagService`.
-  - `departments/`: per-department `config.yaml` and `docs/`. Only `osl/` exists. Select one with `HAWK_DEPT`.
+  - `config/`: `config.yaml` (model and system prompt), the handbook in `docs/`, and the loader.
   - `retrieval/`: ChromaDB index and retrieval.
   - `llm/`: Ollama client.
   - `escalation/`: email draft builder.
@@ -27,18 +27,18 @@ On Windows use `.\.venv\Scripts\python.exe` in place of `.venv/bin/python`.
 
 Open <http://127.0.0.1:8000/> for the chat UI and <http://127.0.0.1:8000/docs> for the API.
 
-On startup the app reads the PDF/TXT files in `departments/osl/docs/`, splits them into paragraphs, and indexes them in `ots-chatbot-backend/.chroma/` (git-ignored, rebuilt as needed).
+On startup the app reads the PDF/TXT files in `config/docs/`, splits them into paragraphs, and indexes them in `ots-chatbot-backend/.chroma/` (git-ignored, rebuilt as needed).
 
 ## Model
 
-`departments/osl/config.yaml` sets the Ollama model (currently `llama3.2`) and the system prompt. Start Ollama and make sure the model exists (`ollama pull llama3.2`, or register a fine-tuned GGUF with `ollama create`). GGUF files are git-ignored; do not commit them.
+`config/config.yaml` sets the Ollama model (currently `llama3.2`) and the system prompt. Start Ollama and make sure the model exists (`ollama pull llama3.2`, or register a fine-tuned GGUF with `ollama create`). GGUF files are git-ignored; do not commit them.
 
 ## API
 
 | Route | Purpose |
 | --- | --- |
-| `GET /api/health` | Status and loaded department |
-| `GET /api/dept` | Department name and contact email |
+| `GET /api/health` | Service status |
+| `GET /api/info` | OSL name and contact email |
 | `POST /api/chat` | Answer from the conversation (`{"messages": [{"role": "user", "text": "..."}]}`) |
 | `POST /api/chat/stream` | Same, streamed as newline-delimited JSON |
 | `POST /api/escalate` | Draft an email to OSL, or ask one clarifying question |
@@ -52,5 +52,6 @@ Chat history stays in the browser tab's `sessionStorage`; the server does not st
 ## Tests
 
 ```
+.venv/bin/python -m pip install -r requirements-dev.txt
 .venv/bin/python -m pytest ots-chatbot-backend/tests -q
 ```

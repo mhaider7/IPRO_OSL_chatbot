@@ -1,7 +1,7 @@
 name: "Office of Student Life"
 short_name: "OSL"
 email: "osl@illinoistech.edu"
-docs_path: "departments/osl/docs"
+docs_path: "config/docs"
 model: "llama3.2"
 system_prompt: |
   You are an Illinois Tech Office of Student Life (OSL) assistant.

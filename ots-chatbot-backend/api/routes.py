@@ -14,7 +14,7 @@ router = APIRouter()
 
 @router.get("/api/health")
 def health(req: Request):
-    return {"status": "ok", "department": req.app.state.config.short_name}
+    return {"status": "ok"}
 
 
 @router.post("/api/chat", response_model=ChatResponse)
@@ -37,8 +37,8 @@ def escalate(req: Request, body: Conversation):
         return JSONResponse(status_code=503, content={"detail": "Could not prepare the email draft. Please try again."})
 
 
-@router.get("/api/dept")
-def dept_info(req: Request):
+@router.get("/api/info")
+def info(req: Request):
     cfg = req.app.state.config
     return {"name": cfg.name, "short_name": cfg.short_name, "email": cfg.email}
 

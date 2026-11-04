@@ -1,14 +1,13 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+venv/
 .venv/
 *.egg-info/
 .env
 .DS_Store
 .thumbnail
 node_modules/
-ots-chatbot-backend/.browser-output/
-ots-chatbot-backend/.runtime/
 ots-chatbot-backend/.chroma/
-.playwright-mcp/
 *.gguf
+.playwright-mcp/
