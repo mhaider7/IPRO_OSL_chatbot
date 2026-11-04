@@ -33,9 +33,8 @@ class ChatRequest(Conversation):
 
 class ChatResponse(BaseModel):
     reply: str
-    sources: list[str] = Field(default_factory=list)
     escalate: bool = False
-    escalation_reason: Literal["low_confidence", "user_request"] | None = None
+    escalation_reason: Literal["low_confidence"] | None = None
     offer_options: bool = True
 
     @model_validator(mode="after")

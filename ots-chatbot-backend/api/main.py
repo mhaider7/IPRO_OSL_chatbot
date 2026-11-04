@@ -9,21 +9,20 @@ from fastapi.staticfiles import StaticFiles
 
 from api.routes import FRONTEND, router
 from api.service import RagService
-from departments.loader import load_config, load_docs
+from config.loader import load_config, load_docs
 from retrieval.chroma_setup import build_collection
 
 logger = logging.getLogger("hawk")
 
 
 def create_app() -> FastAPI:
-    dept = os.getenv("HAWK_DEPT", "osl")
-    config = load_config(dept)
-    logger.info("Loading department: %s", config.name)
+    config = load_config()
+    logger.info("Loading: %s", config.name)
 
     chunks = load_docs(config.docs_path)
     logger.info("Ingested %d chunks from %s", len(chunks), config.docs_path)
 
-    collection = build_collection(dept, chunks)
+    collection = build_collection(chunks)
     service = RagService(config, collection)
 
     app = FastAPI(

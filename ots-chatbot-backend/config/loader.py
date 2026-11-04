@@ -1,4 +1,4 @@
-"""Load a department config and ingest its docs into ChromaDB."""
+"""Load the OSL config and read its docs for ingestion into ChromaDB."""
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,7 +8,7 @@ BASE = Path(__file__).resolve().parent
 
 
 @dataclass
-class DeptConfig:
+class Config:
     name: str
     short_name: str
     email: str
@@ -17,12 +17,10 @@ class DeptConfig:
     system_prompt: str
 
 
-def load_config(dept: str) -> DeptConfig:
-    path = BASE / dept / "config.yaml"
-    if not path.exists():
-        raise FileNotFoundError(f"No config found for department '{dept}' at {path}")
+def load_config() -> Config:
+    path = BASE / "config.yaml"
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return DeptConfig(
+    return Config(
         name=raw["name"],
         short_name=raw["short_name"],
         email=raw["email"],

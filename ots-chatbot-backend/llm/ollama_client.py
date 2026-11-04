@@ -1,4 +1,4 @@
-"""Local Ollama integration — model and system prompt come from department config."""
+"""Local Ollama integration — model and system prompt come from the config."""
 import json
 from typing import Generator
 
@@ -11,7 +11,7 @@ ROLE_MAP = {"user": "user", "bot": "assistant"}
 
 
 def _messages(question: str, context_chunks: list[str], system_prompt: str, history: list[dict] | None) -> list[dict]:
-    context = "\n\n".join(context_chunks) or "[No matching department material was found.]"
+    context = "\n\n".join(context_chunks) or "[No matching OSL material was found.]"
     turns = [{"role": ROLE_MAP[t["role"]], "content": t["text"]} for t in (history or [])]
     return [
         {"role": "system", "content": f"{system_prompt}\n\nDepartment material:\n{context}"},

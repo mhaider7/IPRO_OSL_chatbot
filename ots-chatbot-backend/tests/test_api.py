@@ -16,11 +16,11 @@ def msg(text, role="user"):
 
 def test_health(client):
     r = client.get("/api/health").json()
-    assert r == {"status": "ok", "department": "OSL"}
+    assert r == {"status": "ok"}
 
 
-def test_dept(client):
-    r = client.get("/api/dept").json()
+def test_info(client):
+    r = client.get("/api/info").json()
     assert r["short_name"] == "OSL"
     assert "@" in r["email"]
 
@@ -59,8 +59,12 @@ def test_cors_blocks_external_origin(client):
 @pytest.mark.integration
 def test_chat_returns_valid_shape(client):
     r = client.post("/api/chat", json={"messages": [msg("How do I register a student org?")]}).json()
-    assert set(r) == {"reply", "sources", "escalate", "escalation_reason", "offer_options"}
+    assert set(r) == {"reply", "escalate", "escalation_reason", "offer_options"}
     assert isinstance(r["reply"], str) and len(r["reply"]) > 0
+    # ollama_client turns connection/model errors into reply text, so rule those out.
+    assert "Ollama is not running" not in r["reply"]
+    assert "not found in Ollama" not in r["reply"]
+    assert r["escalate"] is False
 
 
 @pytest.mark.integration

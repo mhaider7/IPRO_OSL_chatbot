@@ -2,7 +2,7 @@
 import re
 
 from api.schemas import Conversation, EmailDraft, EscalationResponse
-from departments.loader import DeptConfig
+from config.loader import Config
 
 CLARIFY_ISSUE = "What would you like help with? Please describe the issue in a sentence or two."
 CLARIFY_DETAIL = "Can you give a bit more detail about the situation? (You can say 'skip' if you prefer.)"
@@ -12,11 +12,10 @@ QUESTIONS = {CLARIFY_ISSUE, CLARIFY_DETAIL}
 def _redact(text: str) -> str:
     text = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[email omitted]", text)
     text = re.sub(r"\b[Aa]\d{8}\b", "[student ID omitted]", text)
-    text = re.sub(r"(?i)\b(student\s*id|password|verification code|mfa code)\s*(?:is|:|=)\s*\S+", r"\1 [omitted]", text)
     return text
 
 
-def build_email_draft(conversation: Conversation, config: DeptConfig) -> EscalationResponse:
+def build_email_draft(conversation: Conversation, config: Config) -> EscalationResponse:
     users = [m.text for m in conversation.messages if m.role == "user"]
     asked = any(m.role == "bot" and m.text in QUESTIONS for m in conversation.messages)
 

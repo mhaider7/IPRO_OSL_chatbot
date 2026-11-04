@@ -5,14 +5,14 @@ from typing import Generator
 import chromadb
 
 from api.schemas import ChatRequest, ChatResponse, Conversation, EscalationResponse
-from departments.loader import DeptConfig
+from config.loader import Config
 from escalation.email_builder import build_email_draft
 from llm.ollama_client import generate_answer, stream_answer
 from retrieval.chroma_setup import retrieve
 
 
 class RagService:
-    def __init__(self, config: DeptConfig, collection: chromadb.api.models.Collection.Collection):
+    def __init__(self, config: Config, collection: chromadb.api.models.Collection.Collection):
         self.config = config
         self.collection = collection
 
@@ -55,7 +55,6 @@ class RagService:
                 "escalate": True,
                 "escalation_reason": "low_confidence",
                 "offer_options": False,
-                "sources": [],
             }) + "\n"
             return
         for token in stream_answer(
@@ -71,7 +70,6 @@ class RagService:
             "escalate": False,
             "escalation_reason": None,
             "offer_options": True,
-            "sources": [],
         }) + "\n"
 
     def escalate(self, request: Conversation) -> EscalationResponse:
