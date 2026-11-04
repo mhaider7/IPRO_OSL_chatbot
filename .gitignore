@@ -11,3 +11,4 @@ node_modules/
 ots-chatbot-backend/.chroma/
 *.gguf
 .playwright-mcp/
+notes.txt

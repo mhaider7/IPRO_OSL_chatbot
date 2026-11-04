@@ -1,5 +1,31 @@
 # Hawk: Office of Student Life chatbot
 
+## Run locally
+
+Requires Python 3.11+ and [Ollama](https://ollama.com), running with the model named in `ots-chatbot-backend/config/config.yaml` (see Model below).
+
+```
+make install   # create venv/ and install dependencies (first time only)
+make run       # start the server on port 8000
+make test      # install test dependencies and run the tests
+```
+
+Open <http://127.0.0.1:8000/> for the chat UI and <http://127.0.0.1:8000/docs> for the API.
+
+`make` is available on macOS and Linux. Without it (for example on Windows), run the underlying commands directly:
+
+```
+python -m venv venv
+venv/bin/python -m pip install -r requirements.txt
+venv/bin/python -m uvicorn api.main:app --app-dir ots-chatbot-backend --port 8000
+```
+
+On Windows use `.\venv\Scripts\python.exe` in place of `venv/bin/python`.
+
+On startup the app reads the PDF/TXT files in `config/docs/`, splits them into paragraphs, and indexes them in `ots-chatbot-backend/.chroma/` (git-ignored, rebuilt as needed).
+
+## About
+
 Hawk is a student-facing chatbot for the Illinois Tech Office of Student Life (OSL). It answers questions about student organizations, funding, events, and space reservations using the OSL Student Organization Handbook. It retrieves relevant passages from a local ChromaDB index and generates the answer with a local Ollama model. Students can also get a draft email to OSL to review and send themselves; Hawk never sends mail.
 
 ## Layout
@@ -12,22 +38,6 @@ Hawk is a student-facing chatbot for the Illinois Tech Office of Student Life (O
   - `llm/`: Ollama client.
   - `escalation/`: email draft builder.
   - `tests/`: API tests.
-
-## Run locally
-
-Requires Python 3.11+ and [Ollama](https://ollama.com).
-
-```
-python -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m uvicorn api.main:app --app-dir ots-chatbot-backend --port 8000
-```
-
-On Windows use `.\.venv\Scripts\python.exe` in place of `.venv/bin/python`.
-
-Open <http://127.0.0.1:8000/> for the chat UI and <http://127.0.0.1:8000/docs> for the API.
-
-On startup the app reads the PDF/TXT files in `config/docs/`, splits them into paragraphs, and indexes them in `ots-chatbot-backend/.chroma/` (git-ignored, rebuilt as needed).
 
 ## Model
 
@@ -51,7 +61,4 @@ Chat history stays in the browser tab's `sessionStorage`; the server does not st
 
 ## Tests
 
-```
-.venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/python -m pytest ots-chatbot-backend/tests -q
-```
+`make test` runs the suite. Two tests (marked `integration`) call the real Ollama model; to skip them, run `venv/bin/python -m pytest ots-chatbot-backend/tests -q -m "not integration"`.
