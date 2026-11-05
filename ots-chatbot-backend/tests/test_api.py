@@ -71,3 +71,9 @@ def test_chat_returns_valid_shape(client):
 def test_escalate_returns_draft_or_question(client):
     r = client.post("/api/escalate", json={"messages": [msg("I need to contact OSL")]}).json()
     assert (r["email"] is None) != (r["clarifying_question"] is None)
+
+
+def test_frontend_assets_are_not_cached(client):
+    r = client.get("/assets/css/components.css")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == "no-store"
