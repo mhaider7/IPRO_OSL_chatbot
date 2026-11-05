@@ -16,7 +16,7 @@ class RagService:
         self.config = config
         self.collection = collection
 
-    def _retrieval_args(self, request: ChatRequest) -> tuple[str, list[str], list[dict]]:
+    def _retrieval_args(self, request: ChatRequest) -> tuple[str, list[dict], list[dict]]:
         users = [m.text for m in request.messages if m.role == "user"]
         latest = users[-1]
         history = [{"role": m.role, "text": m.text} for m in request.messages[:-1]]

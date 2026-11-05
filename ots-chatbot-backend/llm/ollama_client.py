@@ -1,5 +1,6 @@
 """Local Ollama integration — model and system prompt come from the config."""
 import json
+from pathlib import Path
 from typing import Generator
 
 import httpx
@@ -10,8 +11,20 @@ NUM_CTX = 8192
 ROLE_MAP = {"user": "user", "bot": "assistant"}
 
 
-def _messages(question: str, context_chunks: list[str], system_prompt: str, history: list[dict] | None) -> list[dict]:
-    context = "\n\n".join(context_chunks) or "[No matching OSL material was found.]"
+def _labelled(chunk: dict) -> str:
+    """Prefix a chunk with its source and page so the model can cite it."""
+    source = Path(chunk.get("source", "")).stem.replace("_", " ")
+    start, end = chunk.get("page_start"), chunk.get("page_end")
+    if start is None:
+        where = source
+    else:
+        pages = f"p. {start}" if start == end else f"pp. {start}-{end}"
+        where = f"{source}, {pages}"
+    return f"[Source: {where}]\n{chunk['text']}" if where else chunk["text"]
+
+
+def _messages(question: str, context_chunks: list[dict], system_prompt: str, history: list[dict] | None) -> list[dict]:
+    context = "\n\n".join(_labelled(c) for c in context_chunks) or "[No matching OSL material was found.]"
     turns = [{"role": ROLE_MAP[t["role"]], "content": t["text"]} for t in (history or [])]
     return [
         {"role": "system", "content": f"{system_prompt}\n\nDepartment material:\n{context}"},
@@ -22,7 +35,7 @@ def _messages(question: str, context_chunks: list[str], system_prompt: str, hist
 
 def generate_answer(
     question: str,
-    context_chunks: list[str],
+    context_chunks: list[dict],
     system_prompt: str,
     model: str,
     history: list[dict] | None = None,
@@ -46,7 +59,7 @@ def generate_answer(
 
 def stream_answer(
     question: str,
-    context_chunks: list[str],
+    context_chunks: list[dict],
     system_prompt: str,
     model: str,
     history: list[dict] | None = None,
