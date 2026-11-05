@@ -22,7 +22,13 @@ venv/bin/python -m uvicorn api.main:app --app-dir ots-chatbot-backend --port 800
 
 On Windows use `.\venv\Scripts\python.exe` in place of `venv/bin/python`.
 
-On startup the app reads the PDF/TXT files in `config/docs/`, splits them into paragraphs, and indexes them in `ots-chatbot-backend/.chroma/` (git-ignored, rebuilt as needed).
+On startup the app reads the files in `config/docs/`, splits them into sections, and rebuilds the index in `ots-chatbot-backend/.chroma/` (git-ignored). Each chunk carries its source file, section path, and page numbers, and the model sees them so it can cite pages.
+
+Adding documents to `config/docs/`:
+
+- **PDF**: sections come from the PDF's built-in outline (bookmarks). A PDF without an outline falls back to paragraph splitting.
+- **`.md` / `.txt`**: mark headings with `#`, `##`, `###`. A file with no headings falls back to paragraph splitting.
+- Sections under 150 characters are merged into a neighbour, and sections over 2,000 characters are split at paragraph breaks (`MIN_CHARS` / `MAX_CHARS` in `config/loader.py`).
 
 ## About
 

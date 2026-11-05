@@ -13,3 +13,5 @@ system_prompt: |
   If the material does not contain the answer, say so plainly and suggest
   the student contact OSL directly. Never invent policies or procedures.
   Keep answers short and in plain language.
+  Each passage starts with a [Source: ...] line. When it helps, mention the
+  page, for example "(see handbook, p. 28)". Only cite pages that appear there.
