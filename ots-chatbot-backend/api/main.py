@@ -15,6 +15,15 @@ from retrieval.chroma_setup import build_collection
 logger = logging.getLogger("hawk")
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """Serve frontend files with no-store so edits show up on a normal reload."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+
 def create_app() -> FastAPI:
     config = load_config()
     logger.info("Loading: %s", config.name)
@@ -53,7 +62,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(router)
-    app.mount("/assets", StaticFiles(directory=FRONTEND), name="assets")
+    app.mount("/assets", NoCacheStaticFiles(directory=FRONTEND), name="assets")
     return app
 
 

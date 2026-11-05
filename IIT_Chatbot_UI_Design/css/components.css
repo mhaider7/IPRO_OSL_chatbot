@@ -60,6 +60,7 @@
 
 /* ── Options (Email OSL) ────────────────────────── */
 #options {
+  display: none !important;   /* Email OSL button hidden for now; delete this line to restore it */
   padding: 10px 0 4px;
   display: flex;
   gap: 8px;
