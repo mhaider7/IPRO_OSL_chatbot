@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import create_app
+from api.main import create_app, frame_ancestors_csp
 
 
 @pytest.fixture(scope="module")
@@ -25,10 +25,16 @@ def test_info(client):
     assert "@" in r["email"]
 
 
-def test_frontend_served(client):
+def test_demo_page_loads_widget(client):
     r = client.get("/")
     assert r.status_code == 200
-    assert "Hawk" in r.text
+    assert '<script src="/embed.js"' in r.text
+
+
+def test_chat_page_served(client):
+    r = client.get("/chat")
+    assert r.status_code == 200
+    assert 'id="composer"' in r.text
 
 
 @pytest.mark.parametrize("payload", [
@@ -71,6 +77,24 @@ def test_chat_returns_valid_shape(client):
 def test_escalate_returns_draft_or_question(client):
     r = client.post("/api/escalate", json={"messages": [msg("I need to contact OSL")]}).json()
     assert (r["email"] is None) != (r["clarifying_question"] is None)
+
+
+def test_embed_script_served(client):
+    r = client.get("/embed.js")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/javascript")
+    assert "hawk-chat-widget" in r.text
+
+
+def test_chat_page_limits_who_can_frame_it(client):
+    csp = client.get("/chat").headers["content-security-policy"]
+    assert csp.startswith("frame-ancestors 'self'")
+    assert "http://localhost:8002" in csp
+
+
+def test_frame_ancestors_drops_unsafe_entries():
+    csp = frame_ancestors_csp("https://www.iit.edu, ,https://a.test; script-src *,'unsafe-inline'")
+    assert csp == "frame-ancestors 'self' https://www.iit.edu"
 
 
 def test_frontend_assets_are_not_cached(client):

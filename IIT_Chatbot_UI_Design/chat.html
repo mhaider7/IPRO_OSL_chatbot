@@ -21,7 +21,15 @@
           <span class="brand-sub">Illinois Institute of Technology</span>
         </div>
       </div>
-      <button id="reset" title="Start a new conversation">New chat</button>
+      <div class="top-actions">
+        <button id="reset" title="Start a new conversation">New chat</button>
+        <!-- Shown only inside the embedded widget (/chat?embed=1) -->
+        <button id="close-panel" type="button" aria-label="Close chat" title="Close" hidden>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
     </header>
 
     <div id="chat-body">

@@ -52,5 +52,28 @@ def chat_stream(req: Request, body: ChatRequest):
 
 
 @router.get("/", include_in_schema=False)
-def index():
-    return FileResponse(FRONTEND / "index.html", headers={"Cache-Control": "no-store"})
+def demo():
+    """Demo host page: a stand-in for the OSL site with the widget on it."""
+    return FileResponse(FRONTEND / "demo.html", headers={"Cache-Control": "no-store"})
+
+
+@router.get("/chat", include_in_schema=False)
+def chat_page(req: Request):
+    """The chat app. The widget shows it in an iframe as /chat?embed=1."""
+    return FileResponse(
+        FRONTEND / "chat.html",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": req.app.state.frame_ancestors,
+        },
+    )
+
+
+@router.get("/embed.js", include_in_schema=False)
+def embed_script():
+    # no-cache = browsers revalidate on every page load, so updates show up immediately.
+    return FileResponse(
+        FRONTEND / "embed.js",
+        media_type="text/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )

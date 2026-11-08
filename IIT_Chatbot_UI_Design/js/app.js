@@ -4,6 +4,7 @@
  */
 
 import { chatStreamRequest, escalateRequest, makeAbortController } from "./api.js";
+import { EMBEDDED, initEmbedMode } from "./embed-mode.js";
 import {
   renderMessage, renderEmailCard,
   startBotBubble, appendToken, finishBotBubble,
@@ -193,7 +194,7 @@ function send(text) {
 }
 
 // ── Reset ─────────────────────────────────────────────────────
-function reset() {
+function reset({ focus = true } = {}) {
   epoch++;
   abortCtl?.abort();
   abortCtl = null;
@@ -210,11 +211,11 @@ function reset() {
   showOptions(false);
   renderMessage("bot", GREETING);
   controls();
-  document.getElementById("message").focus();
+  if (focus) document.getElementById("message").focus();
 }
 
 // ── Event listeners ───────────────────────────────────────────
-document.getElementById("reset").addEventListener("click", reset);
+document.getElementById("reset").addEventListener("click", () => reset());
 
 document.getElementById("retry").addEventListener("click", execute);
 
@@ -241,4 +242,6 @@ document.getElementById("message").addEventListener("input", function () {
 });
 
 // ── Init ──────────────────────────────────────────────────────
-if (!restore()) reset();
+// In the widget panel, embed.js decides when focus moves into the chat.
+if (!restore()) reset({ focus: !EMBEDDED });
+initEmbedMode();
