@@ -122,7 +122,7 @@ async function execute() {
         } else if (event.done) {
           const text = fullText || event.reply || "";
           if (!text) throw new Error("Hawk returned an empty reply. Please try again.");
-          if (!fullText) bubble.textContent = text;   // escalation case: text in done event
+          if (!fullText) appendToken(bubble, text);   // escalation case: text in done event
           history.push({ role: "bot", text: text });
           finishBotBubble(row, event.sources || []);
           showOptions(event.offer_options ?? true);
@@ -132,8 +132,10 @@ async function execute() {
       }
     } else {
       // ── Non-streaming escalate ──────────────────────────────
+      streamRow = startBotBubble().row;   // typing dots until the draft arrives
       const data = await escalateRequest(history, controller.signal);
       if (version !== epoch) return;
+      streamRow.remove();
       if (!validEscalation(data)) throw new Error("Hawk returned an unexpected draft. Please try again.");
       if (data.clarifying_question) {
         history.push({ role: "bot", text: data.clarifying_question });
@@ -235,6 +237,16 @@ document.querySelectorAll("[data-question]").forEach((btn) =>
   btn.addEventListener("click", () => send(btn.dataset.question))
 );
 
+// Enter sends, Shift+Enter adds a new line. On touch screens Enter always adds
+// a new line (phone keyboards have no Shift+Enter) and the send button sends.
+const touchScreen = window.matchMedia("(pointer: coarse)");
+document.getElementById("message").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.shiftKey || touchScreen.matches) return;
+  if (e.isComposing || e.keyCode === 229) return;   // confirming an IME candidate, not sending
+  e.preventDefault();
+  if (e.target.value.trim()) document.getElementById("composer").requestSubmit();
+});
+
 // Auto-resize textarea
 document.getElementById("message").addEventListener("input", function () {
   this.style.height = "auto";
@@ -242,6 +254,7 @@ document.getElementById("message").addEventListener("input", function () {
 });
 
 // ── Init ──────────────────────────────────────────────────────
+
 // In the widget panel, embed.js decides when focus moves into the chat.
 if (!restore()) reset({ focus: !EMBEDDED });
 initEmbedMode();

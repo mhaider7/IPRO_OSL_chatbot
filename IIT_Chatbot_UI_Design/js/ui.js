@@ -39,11 +39,18 @@ export function renderMessage(role, text, sources = []) {
   scroll();
 }
 
+// A reply bubble that shows animated typing dots until the first token arrives.
+// The dots are hidden from screen readers; #status announces "Hawk is thinking…".
 export function startBotBubble() {
   const row = document.createElement("div");
   row.className = "message bot";
   const bubble = document.createElement("div");
-  bubble.className = "bubble";
+  bubble.className = "bubble typing";
+  const dots = document.createElement("span");
+  dots.className = "dots";
+  dots.setAttribute("aria-hidden", "true");
+  dots.append(...[1, 2, 3].map(() => document.createElement("span")));
+  bubble.append(dots);
   row.append(bubble);
   $("messages").append(row);
   scroll();
@@ -51,6 +58,10 @@ export function startBotBubble() {
 }
 
 export function appendToken(bubble, token) {
+  if (bubble.classList.contains("typing")) {
+    bubble.classList.remove("typing");
+    bubble.textContent = "";
+  }
   bubble.textContent += token;
 }
 
