@@ -14,7 +14,8 @@
  *
  * Messages between this script and the iframe (all { type } objects):
  *   iframe -> page   "hawk:ready"  app finished loading
- *                    "hawk:close"  × button or Escape pressed inside the panel
+ *                    "hawk:close"  minimize button or Escape pressed inside the panel
+ *                                  (minimizes; the conversation is kept)
  *   page -> iframe   "hawk:focus"  panel opened; move focus to the message box
  */
 (() => {
@@ -59,10 +60,9 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
       height: var(--launcher);
       min-width: var(--launcher);
-      padding: 0 20px 0 16px;
+      padding: 0 20px 0 15px;
       border-radius: 999px;
       background: var(--crimson);
       color: #fff;
@@ -70,7 +70,7 @@
       letter-spacing: normal;
       cursor: pointer;
       box-shadow: 0 10px 28px -12px rgba(166, 25, 46, .75), 0 2px 6px rgba(0, 0, 0, .15);
-      transition: background .15s, bottom .25s ease;
+      transition: background .15s, bottom .25s ease, padding .24s ease;
     }
     .launcher:hover { background: var(--crimson-dark); }
     .launcher:focus-visible {
@@ -78,13 +78,30 @@
       outline-offset: 3px;
       box-shadow: 0 0 0 3px #fff;
     }
-    .launcher svg { display: block; width: 22px; height: 22px; flex: none; }
-    .icon-close { display: none !important; }
 
-    .widget[data-state="open"] .launcher { padding: 0; }
-    .widget[data-state="open"] .label,
-    .widget[data-state="open"] .icon-chat { display: none !important; }
-    .widget[data-state="open"] .icon-close { display: block !important; }
+    /* Pill <-> circle: the label collapses (its width is measured into --label-w so
+       the collapse starts at once), the padding evens out to a 52px circle, and the
+       chat icon cross-fades into a chevron that turns into place. */
+    .icons { position: relative; flex: none; width: 22px; height: 22px; }
+    .icons svg {
+      position: absolute; inset: 0;
+      display: block; width: 22px; height: 22px;
+      transition: opacity .18s ease, transform .24s ease;
+    }
+    .icon-minimize { opacity: 0; transform: rotate(-90deg) scale(.7); }
+    .label {
+      display: inline-block;
+      max-width: var(--label-w, 8em);
+      margin-left: 8px;
+      overflow: hidden;
+      white-space: nowrap;
+      transition: max-width .24s ease, margin-left .24s ease, opacity .14s ease;
+    }
+
+    .widget[data-state="open"] .launcher { padding: 0 15px; }
+    .widget[data-state="open"] .label { max-width: 0; margin-left: 0; opacity: 0; }
+    .widget[data-state="open"] .icon-chat { opacity: 0; transform: scale(.6); }
+    .widget[data-state="open"] .icon-minimize { opacity: 1; transform: none; }
 
     .panel {
       position: fixed;
@@ -110,7 +127,7 @@
     }
 
     /* Phones and very short windows: the open panel fills the viewport and
-       carries its own close button, so the launcher steps aside. */
+       carries its own minimize button, so the launcher steps aside. */
     @media (max-width: 520px), (max-height: 480px) {
       .widget[data-state="open"] .panel {
         inset: 0;
@@ -124,15 +141,16 @@
 
     @media (prefers-reduced-motion: reduce) {
       .panel { animation: none; transition: none; }
-      .launcher { transition: none; }
+      .launcher, .label, .icons svg { transition: none; }
     }
   `;
 
   const CHAT_ICON = `<svg class="icon-chat" viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6c-.5.4-1.3.1-1.3-.6V16A2.5 2.5 0 0 1 4 13.5v-8Z"
       stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
-  const CLOSE_ICON = `<svg class="icon-close" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+  // Chevron-down while open: "tuck the chat away", not "end it".
+  const MINIMIZE_ICON = `<svg class="icon-minimize" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M6 9.5l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
   function mount() {
     const host = document.createElement(TAG);
@@ -141,7 +159,7 @@
       <style>${CSS}</style>
       <div class="widget" data-state="closed">
         <button class="launcher" type="button" aria-expanded="false" aria-controls="hawk-panel">
-          ${CHAT_ICON}<span class="label">Ask Hawk</span>${CLOSE_ICON}
+          <span class="icons">${CHAT_ICON}${MINIMIZE_ICON}</span><span class="label">Ask Hawk</span>
         </button>
         <div class="panel" id="hawk-panel" role="dialog" aria-label="Hawk, OSL chat assistant" hidden></div>
       </div>`;
@@ -161,8 +179,13 @@
       const isOpen = next !== "closed";
       panel.hidden = !isOpen;
       launcher.setAttribute("aria-expanded", String(isOpen));
-      if (isOpen) launcher.setAttribute("aria-label", "Close Hawk chat");
-      else launcher.removeAttribute("aria-label");   // name falls back to "Ask Hawk"
+      if (isOpen) {
+        launcher.setAttribute("aria-label", "Minimize Hawk chat");
+        launcher.title = "Minimize (your conversation is saved)";
+      } else {
+        launcher.removeAttribute("aria-label");   // name falls back to "Ask Hawk"
+        launcher.removeAttribute("title");
+      }
       try { sessionStorage.setItem(OPEN_KEY, isOpen ? "1" : "0"); } catch { /* storage blocked */ }
     }
 
@@ -257,6 +280,10 @@
         .observe(document.body, { childList: true, subtree: true, attributes: true,
                                   attributeFilter: ["class", "style", "hidden", "open"] });
       window.addEventListener("resize", measure);
+      // The launcher changes width as it morphs; re-check the banner once it settles.
+      launcher.addEventListener("transitionend", (e) => {
+        if (e.target === launcher && e.propertyName === "padding-left") measure();
+      });
       measure();
     }
 
@@ -266,6 +293,12 @@
     let wasOpen = false;
     try { wasOpen = sessionStorage.getItem(OPEN_KEY) === "1"; } catch { /* storage blocked */ }
     if (wasOpen) open(false);
+
+    // Exact label width, so the pill-to-circle collapse has no dead time. Measured
+    // after any reopen above, so a page that loads with the panel open doesn't
+    // play the morph. (scrollWidth is the full text width even while collapsed.)
+    const label = root.querySelector(".label");
+    widget.style.setProperty("--label-w", `${Math.ceil(label.scrollWidth)}px`);
   }
 
   if (document.body) mount();

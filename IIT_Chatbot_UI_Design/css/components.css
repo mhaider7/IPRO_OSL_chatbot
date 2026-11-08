@@ -31,6 +31,67 @@
   border-radius: var(--radius) 4px var(--radius) var(--radius);
 }
 
+/* Typing indicator: three pulsing dots inside the reply bubble until the first word
+   arrives. The bubble fades in and rises 4px, then the dots pop in one after another
+   and carry on into a continuous wave (no pause between loops). The bubble is the
+   height of one text line, so it doesn't jump when the reply replaces the dots. */
+.bubble.typing {
+  padding: 11px 16px;
+  animation: hawk-bubble-in .16s ease-out both;
+}
+.dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 1.6em;   /* one line of bubble text */
+}
+/* Each dot runs two animations at once: the looping pulse (transform + opacity) and a
+   one-time pop-in (the separate `scale` property). The browser multiplies the two, so
+   the pulse keeps running underneath the pop-in and there's no hand-off jump. */
+.dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-2);
+  animation:
+    hawk-dot-pulse 1.4s ease-in-out var(--wave-delay) infinite,
+    hawk-dot-in .26s cubic-bezier(.3, 1.35, .6, 1) calc(.1s + var(--i) * 70ms) both;   /* slight overshoot */
+  will-change: transform, opacity, scale;   /* animate on the GPU from the first frame */
+}
+/* Negative pulse delays start each dot partway through the loop, so the wave is already
+   moving on the first frame. (Positive delays left dots 2 and 3 at full size until
+   their animation began, then they snapped down: a visible hitch.) The pop-in starts
+   at 0.1s, as the bubble finishes fading in, with the dots 70ms apart. */
+.dots span:nth-child(1) { --wave-delay: -.4s; --i: 0; }
+.dots span:nth-child(2) { --wave-delay: -.2s; --i: 1; }
+.dots span:nth-child(3) { --wave-delay: 0s;   --i: 2; }
+
+@keyframes hawk-bubble-in {
+  from { opacity: 0; translate: 0 4px; }
+  to   { opacity: 1; translate: 0 0; }
+}
+@keyframes hawk-dot-in {
+  from { scale: 0; }
+  to   { scale: 1; }
+}
+/* Each dot grows and brightens in turn; no movement */
+@keyframes hawk-dot-pulse {
+  0%, 100% { opacity: .3; transform: scale(.75); }
+  40%      { opacity: 1;  transform: scale(1); }
+}
+/* Reduced motion: opacity only, slower */
+@keyframes hawk-dot-dim {
+  0%, 100% { opacity: .3; }
+  40%      { opacity: 1; }
+}
+
+/* Reduced motion: no entrance, and the dots only fade */
+@media (prefers-reduced-motion: reduce) {
+  .bubble.typing { animation: none; }
+  .dots span { animation: hawk-dot-dim 2s ease-in-out var(--wave-delay) infinite; }
+}
+
 .source {
   font-size: 12px;
   color: var(--crimson);
@@ -172,13 +233,6 @@
 }
 
 /* ── Status / error / retry ─────────────────────── */
-#status {
-  font-size: 12.5px;
-  color: var(--text-3);
-  min-height: 18px;
-  padding-bottom: 4px;
-}
-
 #error {
   font-size: 13px;
   color: var(--crimson);

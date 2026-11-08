@@ -5,22 +5,42 @@
 Requires Python 3.11+ and [Ollama](https://ollama.com), running with the model named in `ots-chatbot-backend/config/config.yaml` (see Model below).
 
 ```
-make install   # create venv/ and install dependencies (first time only)
-make run       # start the server on port 8000
+make install   # create .venv/ and install dependencies (first time only)
+make run       # start the server on port 8001
 make test      # install test dependencies and run the tests
 ```
 
-Open <http://127.0.0.1:8000/> for the demo page with the Hawk widget, and <http://127.0.0.1:8000/docs> for the API. (Use your own port if you start the server with a different `--port`.)
+Open <http://localhost:8001/> for the demo page with the Hawk widget, and <http://localhost:8001/docs> for the API.
 
-`make` is available on macOS and Linux. Without it (for example on Windows), run the underlying commands directly:
+The examples in this README assume port 8001 for Hawk and 8002 for the stress-test page. Any free ports work, but the stress-test page loads Hawk from 8001 by default, and Hawk only lets 8002 embed it by default. If you pick other ports, see the stress-test section below and `HAWK_FRAME_ANCESTORS`.
+
+The virtualenv lives in `.venv/`. If you already have one named `venv/`, it keeps working: `make` uses `.venv/` when it exists and otherwise falls back to `venv/`. In the commands below, replace `.venv` with `venv`.
+
+`make` is available on macOS and Linux. Without it, run the underlying commands directly:
 
 ```
-python -m venv venv
-venv/bin/python -m pip install -r requirements.txt
-venv/bin/python -m uvicorn api.main:app --app-dir ots-chatbot-backend --port 8000
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m uvicorn api.main:app --app-dir ots-chatbot-backend --port 8001
 ```
 
-On Windows use `.\venv\Scripts\python.exe` in place of `venv/bin/python`.
+On Windows (PowerShell), from the repository folder:
+
+```powershell
+# First time only: create .venv\ and install dependencies
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Start the server, then open http://localhost:8001/
+.\.venv\Scripts\python.exe -m uvicorn api.main:app --app-dir ots-chatbot-backend --port 8001
+
+# CSS stress test (in a second terminal, with the server running), then open http://localhost:8002/
+.\.venv\Scripts\python.exe -m http.server 8002 --directory widget-stress-test
+
+# Tests
+.\.venv\Scripts\python.exe -m pip install -q -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest ots-chatbot-backend/tests -q
+```
 
 On startup the app reads the files in `config/docs/`, splits them into sections, and rebuilds the index in `ots-chatbot-backend/.chroma/` (git-ignored). Each chunk carries its source file, section path, and page numbers, and the model sees them so it can cite pages.
 
@@ -54,9 +74,9 @@ Add one line to the host page, just before `</body>`, using the address of your 
 
 The demo page has a look-alike banner built the same way and uses this exact snippet. Its footer's "Cookie settings" link shows the banner again.
 
-How it works: `embed.js` runs on the host page and draws the launcher inside a Shadow DOM, so the page's CSS can't change it. Clicking it opens an iframe of `/chat?embed=1`, the chat app with a compact header and a close button. The chat runs entirely inside the iframe and calls the API on its own origin, so no CORS change is needed. The conversation is kept when the panel is closed and, because it is saved in the iframe's `sessionStorage`, when the visitor moves to another page on the same site in the same tab. If the panel was open, it reopens on the next page, without moving keyboard focus into it. A new tab starts a fresh conversation.
+How it works: `embed.js` runs on the host page and draws the launcher inside a Shadow DOM, so the page's CSS can't change it. Clicking it opens an iframe of `/chat?embed=1`, the chat app with a compact header and a minimize button. The chat runs entirely inside the iframe and calls the API on its own origin, so no CORS change is needed. Closing the panel minimizes it: the conversation is kept and, because it is saved in the iframe's `sessionStorage`, when the visitor moves to another page on the same site in the same tab. If the panel was open, it reopens on the next page, without moving keyboard focus into it. A new tab starts a fresh conversation.
 
-Keyboard: Tab reaches the launcher; Enter or Space opens the panel and puts focus in the message box; Escape (or the × button) closes it and returns focus to the launcher. On screens 520px wide or narrower, or 480px tall or shorter, the open panel fills the screen.
+Keyboard: Tab reaches the launcher; Enter or Space opens the panel and puts focus in the message box. In the message box, Enter sends and Shift+Enter adds a new line (on touch screens Enter adds a new line and the send button sends). Escape, the minimize button in the panel header, or the launcher's chevron minimizes the panel and returns focus to the launcher. Only "New chat" ends the conversation. On screens 520px wide or narrower, or 480px tall or shorter, the open panel fills the screen.
 
 **Allow the host site to embed Hawk.** The chat page sends `Content-Security-Policy: frame-ancestors`, which lists the sites allowed to show it in an iframe. Set `HAWK_FRAME_ANCESTORS` (see `.env.example`) to a comma-separated list. The default allows only Hawk itself (including the demo page) and the stress-test page on port 8002. For the OSL site, add `https://www.iit.edu`.
 
@@ -66,7 +86,7 @@ Keyboard: Tab reaches the launcher; Enter or Space opens the panel and puts focu
 make stress-test   # or: python -m http.server 8002 --directory widget-stress-test
 ```
 
-Open <http://localhost:8002/>. It loads Hawk from `http://localhost:8001`; add `?hawk=http://localhost:8000` to use a different server, or `?hawk=none` to see the page without the widget.
+Open <http://localhost:8002/>. It loads Hawk from `http://localhost:8001`; add `?hawk=http://127.0.0.1:8001` to load Hawk from a truly different site (browsers treat every `localhost` port as the same site), `?hawk=<address>` for any other server, or `?hawk=none` to see the page without the widget.
 
 **What the host site would need** (for example https://www.iit.edu/student-life, which runs Drupal 10):
 
@@ -115,4 +135,4 @@ Chat history stays in the browser tab's `sessionStorage`; the server does not st
 
 ## Tests
 
-`make test` runs the suite. Two tests (marked `integration`) call the real Ollama model; to skip them, run `venv/bin/python -m pytest ots-chatbot-backend/tests -q -m "not integration"`.
+`make test` runs the suite. Two tests (marked `integration`) call the real Ollama model; to skip them, run `.venv/bin/python -m pytest ots-chatbot-backend/tests -q -m "not integration"`.
