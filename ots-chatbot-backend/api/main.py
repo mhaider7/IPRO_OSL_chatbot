@@ -14,6 +14,21 @@ from retrieval.chroma_setup import build_collection
 
 logger = logging.getLogger("hawk")
 
+# Sites allowed to show the chat page in an iframe (the embeddable widget).
+# Default: the local CSS stress-test page (`make stress-test`).
+DEFAULT_FRAME_ANCESTORS = "http://localhost:8002,http://127.0.0.1:8002"
+
+
+def frame_ancestors_csp(raw: str) -> str:
+    """Build the CSP header value from a comma-separated list of origins.
+
+    Entries containing spaces, quotes, or semicolons are dropped so the
+    variable can't inject other CSP directives.
+    """
+    sources = [v.strip() for v in raw.split(",")]
+    sources = [v for v in sources if v and not any(c in v for c in " ;'\"")]
+    return " ".join(["frame-ancestors", "'self'", *sources])
+
 
 class NoCacheStaticFiles(StaticFiles):
     """Serve frontend files with no-store so edits show up on a normal reload."""
@@ -41,6 +56,9 @@ def create_app() -> FastAPI:
     )
     app.state.config = config
     app.state.service = service
+    app.state.frame_ancestors = frame_ancestors_csp(
+        os.getenv("HAWK_FRAME_ANCESTORS", DEFAULT_FRAME_ANCESTORS)
+    )
 
     origins = [
         v.strip()

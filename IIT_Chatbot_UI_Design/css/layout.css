@@ -52,6 +52,21 @@ body { background: var(--bg); }
 }
 #reset:hover { border-color: var(--text-3); color: var(--text); }
 
+.top-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+#close-panel {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  transition: background .15s, color .15s;
+}
+#close-panel:hover { background: var(--bg); color: var(--text); }
+
 /* Scrollable chat body */
 #chat-body {
   flex: 1;
@@ -83,3 +98,12 @@ body { background: var(--bg); }
   #top-bar { padding: 0 14px; }
   #chat-body, #input-wrap { padding-left: 14px; padding-right: 14px; }
 }
+
+/* Embedded widget panel (/chat?embed=1): the iframe is the whole window */
+.embed #app { max-width: none; }
+.embed #top-bar { height: 56px; padding: 0 10px 0 14px; gap: 8px; }
+.embed .brand, .embed .brand-info { min-width: 0; }
+.embed .brand-mark { width: 32px; height: 32px; }
+.embed .brand-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.embed #chat-body { padding: 16px 14px 6px; }
+.embed #input-wrap { padding: 6px 14px 10px; }

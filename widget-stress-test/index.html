@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hawk widget CSS stress test</title>
+  <!--
+    CSS stress test, not a demo (the demo page is http://localhost:8001/).
+    A deliberately ugly third-party page with aggressive global CSS. If the Hawk
+    widget still looks normal here, the host page's styles aren't leaking into it.
+    It runs on its own port so the browser treats it as a different site from Hawk.
+
+    Run:   make stress-test       (or: python -m http.server 8002 --directory widget-stress-test)
+    Open:  http://localhost:8002/                      -> loads Hawk from http://localhost:8001
+           http://localhost:8002/?hawk=http://localhost:8000   -> a different Hawk server
+           http://localhost:8002/?hawk=none            -> page without the widget
+  -->
+  <style>
+    * {
+      font-family: "Comic Sans MS", "Comic Sans", cursive !important;
+      letter-spacing: 1px;
+      box-sizing: content-box;
+      margin: 4px;
+      color: darkgreen;
+    }
+    html { font-size: 22px; }
+    body {
+      margin: 32px;
+      background: #fffbe6;
+      line-height: 2;
+      text-align: center;
+      color: green;
+      color-scheme: dark;
+    }
+    button {
+      background: yellow !important;
+      color: blue !important;
+      border: 4px dashed red !important;
+      border-radius: 0 !important;
+      padding: 18px !important;
+      font-size: 28px !important;
+      text-transform: uppercase;
+    }
+    div, section { padding: 8px; }
+    iframe { border: 10px solid purple !important; width: 300px; height: 150px; }
+    svg { display: none; }
+    [hidden] { display: block !important; }
+    textarea, input { background: pink; border: 3px solid black; font-size: 26px; max-width: 60vw; }
+    a { color: magenta; }
+    nav { background: #003; position: sticky; top: 0; z-index: 10; }
+    nav a { color: #fff; }
+  </style>
+</head>
+<body>
+  <nav><a href="./">Home</a> · <a href="./?page=2">Another page</a> · <a href="#events">Events</a></nav>
+
+  <h1>Widget CSS stress test</h1>
+  <p>This page is ugly on purpose: its CSS tries to restyle every font, button, and frame. The Hawk launcher in the bottom-right corner should still look exactly like it does on the demo page.</p>
+
+  <section>
+    <h2>Host page controls</h2>
+    <p>These belong to the host page and should keep the host's yellow-button style.</p>
+    <button id="host-button" type="button">Host button</button>
+    <p><label for="host-input">Host input</label> <input id="host-input" type="text"></p>
+  </section>
+
+  <section id="events">
+    <h2>Events</h2>
+    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis dapibus.</p>
+    <p>Donec sed odio dui. Cras mattis consectetur purus sit amet fermentum. Nulla vitae elit libero.</p>
+    <p>Maecenas faucibus mollis interdum. Vestibulum id ligula porta felis euismod semper.</p>
+  </section>
+
+  <!--
+    On the real site this would be the one-line snippet from the README:
+      <script src="http://localhost:8001/embed.js" defer></script>
+    This page builds that same tag so it can point at any Hawk server.
+  -->
+  <script>
+    (function () {
+      var hawk = new URLSearchParams(location.search).get("hawk") || "http://localhost:8001";
+      if (hawk === "none") return;
+      var s = document.createElement("script");
+      s.src = new URL(hawk).origin + "/embed.js";
+      s.defer = true;
+      document.body.appendChild(s);
+    })();
+  </script>
+</body>
+</html>

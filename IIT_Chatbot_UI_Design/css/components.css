@@ -245,3 +245,8 @@
 @media (max-width: 520px) {
   .message { max-width: 92%; }
 }
+
+/* Below 16px, iOS Safari zooms the page when the message box is focused */
+@media (max-width: 520px) and (pointer: coarse) {
+  #message { font-size: 16px; }
+}
