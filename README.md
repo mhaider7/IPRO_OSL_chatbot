@@ -140,4 +140,4 @@ Chat history stays in the browser tab's `sessionStorage`; the server does not st
 
 ## Tests
 
-`make test` runs the suite. Two tests (marked `integration`) call the real Ollama model; to skip them, run `.venv/bin/python -m pytest ots-chatbot-backend/tests -q -m "not integration"`.
+`make test` runs the suite. It builds its own search index in the system temp folder, so it is safe to run while the server is running. Three tests (marked `integration`) call the real Ollama model; to skip them, run `.venv/bin/python -m pytest ots-chatbot-backend/tests -q -m "not integration"`.
