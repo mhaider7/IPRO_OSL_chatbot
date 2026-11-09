@@ -14,6 +14,9 @@ const $ = (id) => document.getElementById(id);
 let draftNumber = 0;
 const streams = new WeakMap();   // streaming bubble -> { text, frame }
 
+const MIN_STAGE_MS = 600;           // shortest time a stage text stays up (never delays the reply)
+const stageTimes = new WeakMap();   // stage element -> { shownAt, queued, timer }
+
 export function scroll() {
   const body = $("chat-body");
   if (body) body.scrollTop = body.scrollHeight;
@@ -48,10 +51,13 @@ export function renderMessage(role, text, sources = []) {
   scroll();
 }
 
-// A reply bubble that shows animated typing dots until the first token arrives.
-// The dots are hidden from screen readers; #status announces "Hawk is thinking…".
-// aria-busy asks screen readers to wait for the finished reply instead of re-reading
-// the bubble every time it is re-rendered; finishBotBubble clears it.
+// The reply's placeholder until the first token arrives. While typing it is drawn as a
+// small pill: a spinning ring plus what Hawk is doing ("Searching the handbook…"), set
+// by setStage from the server's stage events. If no stage ever comes (the email-draft
+// path), it shows typing dots instead. Ring, dots and text are hidden from screen
+// readers; #status announces the same text. aria-busy asks screen readers to wait for
+// the finished reply instead of re-reading the bubble every time it is re-rendered;
+// finishBotBubble clears it.
 export function startBotBubble() {
   const row = document.createElement("div");
   row.className = "message bot";
@@ -62,11 +68,45 @@ export function startBotBubble() {
   dots.className = "dots";
   dots.setAttribute("aria-hidden", "true");
   dots.append(...[1, 2, 3].map(() => document.createElement("span")));
-  bubble.append(dots);
+  const stage = document.createElement("span");
+  stage.className = "stage";
+  stage.setAttribute("aria-hidden", "true");
+  bubble.append(dots, stage);
   row.append(bubble);
   $("messages").append(row);
   scroll();
   return { row, bubble };
+}
+
+// Show what Hawk is doing in the pill and announce it in #status. Ignored once the
+// reply has started (the first token replaces the pill).
+export function setStage(bubble, text) {
+  const stage = bubble.querySelector(".stage");
+  if (!stage || streams.has(bubble)) return;
+  setStatus(text);   // screen readers hear every stage right away
+  holdThenShow(stage, text);
+}
+
+// The pill's text changes at most every MIN_STAGE_MS, so a stage that's over at once
+// ("Searching…", ~0.05s) is still readable instead of a flicker. The reply itself is
+// never held back: the first token replaces the pill whatever it is showing.
+function holdThenShow(stage, text) {
+  let t = stageTimes.get(stage);
+  if (!t) stageTimes.set(stage, (t = { shownAt: -Infinity, queued: null, timer: 0 }));
+  const wait = t.shownAt + MIN_STAGE_MS - performance.now();
+  if (wait <= 0 && !t.timer) {
+    stage.textContent = text;
+    t.shownAt = performance.now();
+    return;
+  }
+  t.queued = text;
+  if (!t.timer) {
+    t.timer = setTimeout(() => {
+      t.timer = 0;
+      stage.textContent = t.queued;
+      t.shownAt = performance.now();
+    }, wait);
+  }
 }
 
 // Tokens are collected and the whole reply is re-formatted at most once per frame,

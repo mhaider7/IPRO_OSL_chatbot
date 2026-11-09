@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -49,7 +50,15 @@ def create_app() -> FastAPI:
     collection = build_collection(chunks)
     service = RagService(config, collection)
 
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        # Load the model when the server starts, in the background: startup doesn't
+        # wait for it, and a stopped Ollama doesn't stop the server from starting.
+        service.warm_up()
+        yield
+
     app = FastAPI(
+        lifespan=lifespan,
         title=f"{config.name} Chatbot API",
         version="0.2.0",
         description=f"RAG chatbot for {config.name}.",

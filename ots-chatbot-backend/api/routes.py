@@ -51,6 +51,18 @@ def chat_stream(req: Request, body: ChatRequest):
     )
 
 
+@router.post("/api/warmup", status_code=202)
+def warmup(req: Request):
+    """Ask Ollama to load the model (or keep it loaded) in the background.
+
+    The widget panel calls this when it opens, so a model that was unloaded while
+    nobody used Hawk starts loading while the student types. Returns at once and
+    never generates text.
+    """
+    req.app.state.service.warm_up()
+    return {"status": "accepted"}
+
+
 @router.get("/", include_in_schema=False)
 def demo():
     """Demo host page: a stand-in for the OSL site with the widget on it."""

@@ -3,11 +3,11 @@
  * Imports api.js for fetch calls and ui.js for DOM updates.
  */
 
-import { chatStreamRequest, escalateRequest, makeAbortController } from "./api.js";
+import { chatStreamRequest, escalateRequest, makeAbortController, warmUpRequest } from "./api.js";
 import { EMBEDDED, initEmbedMode } from "./embed-mode.js";
 import {
   renderMessage, renderEmailCard,
-  startBotBubble, appendToken, finishBotBubble,
+  startBotBubble, setStage, appendToken, finishBotBubble,
   setStatus, setError, clearError,
   setControls, showChips, showOptions, scroll,
 } from "./ui.js";
@@ -18,6 +18,13 @@ const GREETING =
   "Hi, I'm Hawk — the OSL assistant. Ask me about student organizations, " +
   "events, funding, space reservations, or any OSL policy. " +
   "Please do not share passwords, verification codes, or student IDs.";
+
+// Text for the stages the server reports while it works on a reply (see api.js).
+const STAGES = {
+  searching: "Searching the handbook…",
+  loading:   "Starting up…",
+  writing:   "Writing an answer…",
+};
 
 let history    = [];
 let escalating = false;
@@ -119,6 +126,8 @@ async function execute() {
           fullText += event.token;
           appendToken(bubble, event.token);
           scroll();
+        } else if (event.stage !== undefined) {
+          if (STAGES[event.stage]) setStage(bubble, STAGES[event.stage]);   // unknown stages: ignore
         } else if (event.done) {
           const text = fullText || event.reply || "";
           if (!text) throw new Error("Hawk returned an empty reply. Please try again.");
@@ -260,3 +269,5 @@ document.getElementById("message").addEventListener("input", function () {
 // In the widget panel, embed.js decides when focus moves into the chat.
 if (!restore()) reset({ focus: !EMBEDDED });
 initEmbedMode();
+// The panel only loads when someone opens Hawk: get the model ready while they type.
+if (EMBEDDED) warmUpRequest();
