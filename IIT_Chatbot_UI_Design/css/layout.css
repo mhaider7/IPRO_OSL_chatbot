@@ -52,6 +52,8 @@ body { background: var(--bg); }
 }
 #reset:hover { border-color: var(--text-3); color: var(--text); }
 
+/* Header buttons: "New chat", plus the minimize button that only shows inside the
+   widget panel (/chat?embed=1, unhidden by js/embed-mode.js). */
 .top-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
 #close-panel {

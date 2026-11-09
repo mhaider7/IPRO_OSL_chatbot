@@ -71,7 +71,11 @@ def chat_page(req: Request):
 
 @router.get("/embed.js", include_in_schema=False)
 def embed_script():
-    # no-cache = browsers revalidate on every page load, so updates show up immediately.
+    """Widget loader that host sites include with one <script> tag.
+
+    Served with no-cache (browsers revalidate on every page load), so updates to the
+    widget reach every site that embeds it immediately.
+    """
     return FileResponse(
         FRONTEND / "embed.js",
         media_type="text/javascript",

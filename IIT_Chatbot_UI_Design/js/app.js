@@ -122,7 +122,9 @@ async function execute() {
         } else if (event.done) {
           const text = fullText || event.reply || "";
           if (!text) throw new Error("Hawk returned an empty reply. Please try again.");
-          if (!fullText) appendToken(bubble, text);   // escalation case: text in done event
+          // Low-confidence fallback ("I don't have information on that..."): the server
+          // sends no tokens, only the whole reply in the done event. Show it the same way.
+          if (!fullText) appendToken(bubble, text);
           history.push({ role: "bot", text: text });
           finishBotBubble(row, event.sources || []);
           showOptions(event.offer_options ?? true);
