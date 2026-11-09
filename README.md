@@ -78,6 +78,8 @@ How it works: `embed.js` runs on the host page and draws the launcher inside a S
 
 Keyboard: Tab reaches the launcher; Enter or Space opens the panel and puts focus in the message box. In the message box, Enter sends and Shift+Enter adds a new line (on touch screens Enter adds a new line and the send button sends). Escape, the minimize button in the panel header, or the launcher's chevron minimizes the panel and returns focus to the launcher. Only "New chat" ends the conversation. On screens 520px wide or narrower, or 480px tall or shorter, the open panel fills the screen.
 
+**Formatted replies.** The model answers in markdown. `js/format.js` shows it as formatted text: paragraphs, numbered and bulleted lists (nested with tabs or spaces), bold, italic, inline code, headings (as bold lines), and `[text](https://...)` links. It builds page elements directly and never treats model output as HTML, so a reply can't inject markup or scripts. Anything it doesn't support, such as tables, shows as plain text. Replies are re-formatted at most once per frame while they stream in, and screen readers are asked (`aria-busy`) to wait for the finished reply. Your own messages are shown exactly as typed.
+
 **Allow the host site to embed Hawk.** The chat page sends `Content-Security-Policy: frame-ancestors`, which lists the sites allowed to show it in an iframe. Set `HAWK_FRAME_ANCESTORS` (see `.env.example`) to a comma-separated list. The default allows only Hawk itself (including the demo page) and the stress-test page on port 8002. For the OSL site, add `https://www.iit.edu`.
 
 **CSS stress test.** `widget-stress-test/index.html` is a deliberately ugly page whose CSS tries to restyle every font, button, and frame. If the widget looks the same there as on the demo page, host-page styles aren't leaking into it. It runs on its own port so the browser treats it as a separate site from Hawk, like the real OSL site. With the Hawk server running:
@@ -102,7 +104,7 @@ Hawk is a student-facing chatbot for the Illinois Tech Office of Student Life (O
 
 ## Layout
 
-- `IIT_Chatbot_UI_Design/`: browser frontend, served by the API. `chat.html`, `css/`, and `js/` are the chat app; `embed.js` is the widget loader; `js/embed-mode.js` adapts the app when it runs inside the widget panel; `demo.html` is the demo page at `/`. `hawk.js`, `hawk.css`, and the `.dc.html` file are an older design kept for reference and are not loaded.
+- `IIT_Chatbot_UI_Design/`: browser frontend, served by the API. `chat.html`, `css/`, and `js/` are the chat app; `embed.js` is the widget loader; `js/embed-mode.js` adapts the app when it runs inside the widget panel; `js/format.js` formats Hawk's markdown replies; `demo.html` is the demo page at `/`. `hawk.js`, `hawk.css`, and the `.dc.html` file are an older design kept for reference and are not loaded.
 - `widget-stress-test/`: ugly page that checks the widget's style isolation.
 - `ots-chatbot-backend/`: FastAPI backend.
   - `api/`: app factory, routes, schemas, and `RagService`.

@@ -1,10 +1,18 @@
 /**
- * ui.js — all DOM rendering.
- * No fetch calls, no state. Pure functions that read/write the DOM.
+ * ui.js — all DOM rendering for the chat app.
+ * No fetch calls and no conversation state (that lives in app.js). The only state
+ * kept here is presentational: the text of a reply that is still streaming in
+ * (`streams`) and a counter that gives each email draft unique element ids.
+ *
+ * Hawk's messages are formatted with format.js (markdown -> DOM nodes, never HTML);
+ * the student's own messages are shown exactly as typed.
  */
+
+import { formatInto } from "./format.js";
 
 const $ = (id) => document.getElementById(id);
 let draftNumber = 0;
+const streams = new WeakMap();   // streaming bubble -> { text, frame }
 
 export function scroll() {
   const body = $("chat-body");
@@ -32,7 +40,8 @@ export function renderMessage(role, text, sources = []) {
   row.className = `message ${role}`;
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent = text;
+  if (role === "bot") formatInto(bubble, text);   // Hawk writes markdown; user text stays as typed
+  else bubble.textContent = text;
   row.append(bubble);
   attachSources(row, sources);
   $("messages").append(row);
@@ -41,9 +50,12 @@ export function renderMessage(role, text, sources = []) {
 
 // A reply bubble that shows animated typing dots until the first token arrives.
 // The dots are hidden from screen readers; #status announces "Hawk is thinking…".
+// aria-busy asks screen readers to wait for the finished reply instead of re-reading
+// the bubble every time it is re-rendered; finishBotBubble clears it.
 export function startBotBubble() {
   const row = document.createElement("div");
   row.className = "message bot";
+  row.setAttribute("aria-busy", "true");
   const bubble = document.createElement("div");
   bubble.className = "bubble typing";
   const dots = document.createElement("span");
@@ -57,19 +69,42 @@ export function startBotBubble() {
   return { row, bubble };
 }
 
+// Tokens are collected and the whole reply is re-formatted at most once per frame,
+// so a half-written list or **bold** settles into place as more text arrives.
 export function appendToken(bubble, token) {
-  if (bubble.classList.contains("typing")) {
-    bubble.classList.remove("typing");
-    bubble.textContent = "";
+  let stream = streams.get(bubble);
+  if (!stream) streams.set(bubble, (stream = { text: "", frame: 0 }));
+  stream.text += token;
+  if (!stream.frame) {
+    stream.frame = requestAnimationFrame(() => {
+      stream.frame = 0;
+      renderStream(bubble, stream.text);
+    });
   }
-  bubble.textContent += token;
+}
+
+function renderStream(bubble, text) {
+  bubble.classList.remove("typing");
+  formatInto(bubble, text);
+  scroll();
 }
 
 export function finishBotBubble(row, sources = []) {
+  const bubble = row.querySelector(".bubble");
+  const stream = streams.get(bubble);
+  if (stream) {   // render now: the last frame may not have run (or the tab is hidden)
+    cancelAnimationFrame(stream.frame);
+    streams.delete(bubble);
+    renderStream(bubble, stream.text);
+  }
+  row.removeAttribute("aria-busy");
   attachSources(row, sources);
   scroll();
 }
 
+// Note: the To/Subject line below is the one place model text goes into innerHTML.
+// The iframe keeps it away from the host page, but it should be built with
+// textContent like everything else (open item in the widget notes' idea backlog).
 export function renderEmailCard(email) {
   document.querySelectorAll(".email-draft").forEach(c => c.remove());
 

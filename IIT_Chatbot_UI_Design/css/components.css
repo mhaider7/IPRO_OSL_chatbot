@@ -31,6 +31,30 @@
   border-radius: var(--radius) 4px var(--radius) var(--radius);
 }
 
+/* Formatted replies (js/format.js). Bot bubbles hold real paragraphs and lists, so
+   the newlines between them must not show as extra blank lines. User bubbles keep
+   pre-wrap: their text is shown exactly as typed. */
+.bot .bubble { white-space: normal; }
+.bot .bubble > * + * { margin-top: .6em; }
+.bubble ul,
+.bubble ol { padding-left: 1.4em; }
+.bubble li + li,
+.bubble li > ul,
+.bubble li > ol { margin-top: .25em; }
+.bubble li::marker { color: var(--text-2); }
+.bubble strong { font-weight: 600; }
+.bubble code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .9em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 .3em;
+}
+.bubble a { color: var(--crimson); text-decoration: underline; }
+.bubble a:hover { color: var(--crimson-dark); }
+.bubble a:focus-visible { outline: 2px solid var(--crimson); outline-offset: 2px; border-radius: 2px; }
+
 /* Typing indicator: three pulsing dots inside the reply bubble until the first word
    arrives. The bubble fades in and rises 4px, then the dots pop in one after another
    and carry on into a continuous wave (no pause between loops). The bubble is the

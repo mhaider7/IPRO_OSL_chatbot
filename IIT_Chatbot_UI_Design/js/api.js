@@ -33,6 +33,11 @@ export function chatRequest(messages, signal) {
   return post("/api/chat", { messages }, signal);
 }
 
+// Streams a reply from /api/chat/stream, which answers in NDJSON: one JSON object
+// per line. Yields each object as it arrives: { token } for each piece of the reply,
+// then one { done: true, escalate, escalation_reason, offer_options } at the end.
+// The low-confidence fallback sends no tokens; its text is in done's `reply`.
+// (app.js also accepts an optional `sources` list there; the server doesn't send one yet.)
 export async function* chatStreamRequest(messages, signal) {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
