@@ -118,6 +118,8 @@ Hawk is a student-facing chatbot for the Illinois Tech Office of Student Life (O
 
 `config/config.yaml` sets the Ollama model (currently `llama3.2`) and the system prompt. Start Ollama and make sure the model exists (`ollama pull llama3.2`, or register a fine-tuned GGUF with `ollama create`). GGUF files are git-ignored; do not commit them.
 
+**Keeping the model loaded.** Loading the model takes a few seconds (about 4 on a GPU, 5 or more on a CPU), so Hawk loads it when the server starts and again (if needed) when someone opens the widget panel, and asks Ollama to keep it in memory for 60 minutes after the last request. Change that with `HAWK_OLLAMA_KEEP_ALIVE` (see `.env.example`), for example `2h`, or `-1` to keep it until Ollama restarts. While it works, the server reports what it is doing (searching the handbook, starting up, writing an answer) and the widget shows it in a small pill with a spinner until the reply starts.
+
 ## API
 
 | Route | Purpose |
@@ -125,7 +127,8 @@ Hawk is a student-facing chatbot for the Illinois Tech Office of Student Life (O
 | `GET /api/health` | Service status |
 | `GET /api/info` | OSL name and contact email |
 | `POST /api/chat` | Answer from the conversation (`{"messages": [{"role": "user", "text": "..."}]}`) |
-| `POST /api/chat/stream` | Same, streamed as newline-delimited JSON |
+| `POST /api/chat/stream` | Same, streamed as newline-delimited JSON: `{"stage": ...}` lines while working, then `{"token": ...}` lines, then one `{"done": true, ...}` |
+| `POST /api/warmup` | Load the model in the background (returns at once) |
 | `POST /api/escalate` | Draft an email to OSL, or ask one clarifying question |
 | `GET /embed.js` | Widget loader script for other websites |
 

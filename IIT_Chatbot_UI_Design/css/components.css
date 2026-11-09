@@ -55,14 +55,50 @@
 .bubble a:hover { color: var(--crimson-dark); }
 .bubble a:focus-visible { outline: 2px solid var(--crimson); outline-offset: 2px; border-radius: 2px; }
 
-/* Typing indicator: three pulsing dots inside the reply bubble until the first word
-   arrives. The bubble fades in and rises 4px, then the dots pop in one after another
-   and carry on into a continuous wave (no pause between loops). The bubble is the
-   height of one text line, so it doesn't jump when the reply replaces the dots. */
-.bubble.typing {
-  padding: 11px 16px;
+/* Typing indicator: until the first word arrives, the reply's bubble is drawn as a
+   small grey pill with a spinning ring and what Hawk is doing right now ("Searching
+   the handbook…"), from the server's stage events (ui.js setStage; each text stays up
+   at least 0.6s, the reply is never held back). The pill fades in and rises 4px.
+   The text is hidden from screen readers; #status announces the same words.
+   If no stage ever arrives (the email-draft path), pulsing dots show instead. They
+   stay hidden for the first 0.3s so they don't flash before the first stage arrives.
+   The pill is one text line tall (35px); the reply bubble (47px) replaces it. */
+.bot .bubble.typing {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, .045);
+  border-color: transparent;
+  border-radius: 999px;
+  padding: 5px 12px 5px 10px;
   animation: hawk-bubble-in .16s ease-out both;
 }
+.bubble.typing .dots { animation: hawk-show-late 0s .3s both; }
+.bubble.typing:has(.stage:not(:empty)) .dots { display: none; }
+@keyframes hawk-show-late {
+  from { visibility: hidden; }
+  to   { visibility: visible; }
+}
+.bubble.typing .stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: calc(14.5px * 1.6);   /* same height as the dots line: no jump when text arrives */
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.bot .bubble.typing > .stage { margin-top: 0; }   /* beats `.bot .bubble > * + *` */
+.bubble.typing .stage::before {   /* the ring: a circle with one quarter missing, spinning */
+  content: "";
+  width: 11px;
+  height: 11px;
+  border: 1.75px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: hawk-spin .8s linear infinite;
+}
+@keyframes hawk-spin { to { rotate: 1turn; } }
+.bubble.typing .stage:empty { display: none; }
 .dots {
   display: flex;
   align-items: center;
@@ -112,8 +148,9 @@
 
 /* Reduced motion: no entrance, and the dots only fade */
 @media (prefers-reduced-motion: reduce) {
-  .bubble.typing { animation: none; }
+  .bot .bubble.typing { animation: none; }
   .dots span { animation: hawk-dot-dim 2s ease-in-out var(--wave-delay) infinite; }
+  .bubble.typing .stage::before { animation: hawk-dot-dim 2s ease-in-out infinite; }   /* ring fades, doesn't spin */
 }
 
 .source {

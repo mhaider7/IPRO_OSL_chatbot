@@ -33,8 +33,16 @@ export function chatRequest(messages, signal) {
   return post("/api/chat", { messages }, signal);
 }
 
+// Asks the server to load the model in the background. Fire and forget: a failure
+// only means the first reply may be slower.
+export function warmUpRequest() {
+  fetch("/api/warmup", { method: "POST" }).catch(() => {});
+}
+
 // Streams a reply from /api/chat/stream, which answers in NDJSON: one JSON object
-// per line. Yields each object as it arrives: { token } for each piece of the reply,
+// per line. Yields each object as it arrives: { stage } when the server starts a step
+// ("searching", "loading" only if the model wasn't in memory, "writing"; unknown
+// values should be ignored), { token } for each piece of the reply,
 // then one { done: true, escalate, escalation_reason, offer_options } at the end.
 // The low-confidence fallback sends no tokens; its text is in done's `reply`.
 // (app.js also accepts an optional `sources` list there; the server doesn't send one yet.)
