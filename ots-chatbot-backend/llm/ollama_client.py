@@ -16,6 +16,9 @@ logger = logging.getLogger("hawk")
 OLLAMA_BASE = "http://127.0.0.1:11434"
 OLLAMA_URL = f"{OLLAMA_BASE}/api/chat"
 NUM_CTX = 8192
+# temperature 0.1 + fixed seed: same prompt should yield the same answer (default
+# sampling was causing different handbook details on repeated questions).
+GENERATE_OPTIONS = {"num_ctx": NUM_CTX, "temperature": 0.1, "seed": 42}
 # How long Ollama keeps the model in memory after the last request ("60m", "2h", "-1" =
 # until Ollama restarts). Ollama's default, 5 minutes, meant a ~5 s reload after short breaks.
 # Plain numbers (seconds, or -1) must be sent as JSON numbers: Ollama rejects "-1" as text.
@@ -72,7 +75,7 @@ def load_model(model: str) -> bool:
     try:
         response = _client.post(f"{OLLAMA_BASE}/api/generate", json={
             "model": model,
-            "options": {"num_ctx": NUM_CTX},
+            "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
         })
         response.raise_for_status()
@@ -106,7 +109,7 @@ def generate_answer(
             "model": model,
             "messages": _messages(question, context_chunks, system_prompt, history),
             "stream": False,
-            "options": {"num_ctx": NUM_CTX},
+            "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
         })
         response.raise_for_status()
@@ -131,7 +134,7 @@ def stream_answer(
             "model": model,
             "messages": _messages(question, context_chunks, system_prompt, history),
             "stream": True,
-            "options": {"num_ctx": NUM_CTX},
+            "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
         }) as response:
             response.raise_for_status()

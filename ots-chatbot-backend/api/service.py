@@ -26,16 +26,10 @@ class RagService:
         return latest, chunks, history
 
     def chat(self, request: ChatRequest) -> ChatResponse:
+        # Empty retrieval still goes to the LLM so greetings / "what do you cover?"
+        # can use the system prompt (Persona Exception). Context then shows
+        # "[No matching OSL material was found.]".
         latest, chunks, history = self._retrieval_args(request)
-        if not chunks:
-            return ChatResponse(
-                reply=(
-                    f"I don't have information on that in the {self.config.name} materials. "
-                    f"You can contact {self.config.name} directly or use the email option below."
-                ),
-                escalate=True,
-                escalation_reason="low_confidence",
-            )
         answer = generate_answer(
             question=latest,
             context_chunks=chunks,
@@ -52,21 +46,12 @@ class RagService:
         "loading" (only if Ollama reports the model isn't in memory; it is loaded before
         moving on), "writing" (the model reads the material and writes; ends at the
         first token). Clients that don't know `stage` lines can ignore them.
+
+        Empty retrieval still calls the model so greetings and persona questions are
+        handled by the system prompt instead of a fixed low-confidence reply.
         """
         yield json.dumps({"stage": "searching"}) + "\n"
         latest, chunks, history = self._retrieval_args(request)
-        if not chunks:
-            yield json.dumps({
-                "done": True,
-                "reply": (
-                    f"I don't have information on that in the {self.config.name} materials. "
-                    f"You can contact {self.config.name} directly or use the email option below."
-                ),
-                "escalate": True,
-                "escalation_reason": "low_confidence",
-                "offer_options": False,
-            }) + "\n"
-            return
         if model_loaded(self.config.model) is False:   # None = Ollama unreachable: say nothing
             yield json.dumps({"stage": "loading"}) + "\n"
             load_model(self.config.model)
