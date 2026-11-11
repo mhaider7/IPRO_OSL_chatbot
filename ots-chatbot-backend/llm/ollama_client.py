@@ -16,6 +16,9 @@ logger = logging.getLogger("hawk")
 OLLAMA_BASE = "http://127.0.0.1:11434"
 OLLAMA_URL = f"{OLLAMA_BASE}/api/chat"
 NUM_CTX = 8192
+# temperature 0.1 + fixed seed: same prompt should yield the same answer (default
+# sampling was causing different handbook details on repeated questions).
+GENERATE_OPTIONS = {"num_ctx": NUM_CTX, "temperature": 0.1, "seed": 42}
 # How long Ollama keeps the model in memory after the last request ("60m", "2h", "-1" =
 # until Ollama restarts). Ollama's default, 5 minutes, meant a ~5 s reload after short breaks.
 # Plain numbers (seconds, or -1) must be sent as JSON numbers: Ollama rejects "-1" as text.
@@ -32,16 +35,35 @@ _warming = threading.Lock()
 ROLE_MAP = {"user": "user", "bot": "assistant"}
 
 
-def _labelled(chunk: dict) -> str:
-    """Prefix a chunk with its source and page so the model can cite it."""
-    source = Path(chunk.get("source", "")).stem.replace("_", " ")
+def _source_name(chunk: dict) -> str:
+    return Path(chunk.get("source", "")).stem.replace("_", " ") or "handbook"
+
+
+def _page_label(chunk: dict) -> str | None:
     start, end = chunk.get("page_start"), chunk.get("page_end")
     if start is None:
-        where = source
-    else:
-        pages = f"p. {start}" if start == end else f"pp. {start}-{end}"
-        where = f"{source}, {pages}"
+        return None
+    return f"p. {start}" if start == end else f"pp. {start}-{end}"
+
+
+def _labelled(chunk: dict) -> str:
+    """Prefix a chunk with its source and page so the model can cite it."""
+    source = _source_name(chunk)
+    pages = _page_label(chunk)
+    where = f"{source}, {pages}" if pages else source
     return f"[Source: {where}]\n{chunk['text']}" if where else chunk["text"]
+
+
+def citation_sources(chunks: list[dict]) -> list[str]:
+    """Deduped handbook cites for the UI/API, e.g. '(student org handbook, p. 28)'."""
+    seen: list[str] = []
+    for chunk in chunks:
+        name = _source_name(chunk)
+        pages = _page_label(chunk)
+        cite = f"({name}, {pages})" if pages else f"({name})"
+        if cite not in seen:
+            seen.append(cite)
+    return seen
 
 
 def _messages(question: str, context_chunks: list[dict], system_prompt: str, history: list[dict] | None) -> list[dict]:
@@ -72,7 +94,7 @@ def load_model(model: str) -> bool:
     try:
         response = _client.post(f"{OLLAMA_BASE}/api/generate", json={
             "model": model,
-            "options": {"num_ctx": NUM_CTX},
+            "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
         })
         response.raise_for_status()
@@ -106,7 +128,7 @@ def generate_answer(
             "model": model,
             "messages": _messages(question, context_chunks, system_prompt, history),
             "stream": False,
-            "options": {"num_ctx": NUM_CTX},
+            "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
         })
         response.raise_for_status()
@@ -131,7 +153,7 @@ def stream_answer(
             "model": model,
             "messages": _messages(question, context_chunks, system_prompt, history),
             "stream": True,
-            "options": {"num_ctx": NUM_CTX},
+            "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
         }) as response:
             response.raise_for_status()

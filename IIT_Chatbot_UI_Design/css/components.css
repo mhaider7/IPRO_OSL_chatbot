@@ -153,12 +153,20 @@
   .bubble.typing .stage::before { animation: hawk-dot-dim 2s ease-in-out infinite; }   /* ring fades, doesn't spin */
 }
 
-.source {
+.bubble .source {
   font-size: 12px;
   color: var(--crimson);
-  padding-top: 4px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-2);
   overflow-wrap: anywhere;
   display: block;
+}
+
+.bubble .source + .source {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: none;
 }
 
 /* ── Chip suggestions ───────────────────────────── */

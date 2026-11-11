@@ -22,19 +22,32 @@ export function scroll() {
   if (body) body.scrollTop = body.scrollHeight;
 }
 
-function attachSources(row, sources) {
+function attachSources(bubble, sources) {
   for (const source of sources) {
-    try {
-      const url = new URL(source.startsWith("https://") ? source : `https://${source}`);
-      if (url.protocol !== "https:" || !url.hostname.includes(".")) continue;
+    if (typeof source !== "string" || !source.trim()) continue;
+    // Handbook cites are plain labels like "(student org handbook, p. 28)".
+    // Only real https URLs become links; never invent a link from a cite string.
+    let href = null;
+    if (/^https:\/\//i.test(source)) {
+      try {
+        const url = new URL(source);
+        if (url.protocol === "https:" && url.hostname.includes(".")) href = url.href;
+      } catch { /* plain text below */ }
+    }
+    if (href) {
       const link = document.createElement("a");
       link.className = "source";
-      link.href = url.href;
+      link.href = href;
       link.textContent = source;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      row.append(link);
-    } catch { /* skip invalid URLs */ }
+      bubble.append(link);
+    } else {
+      const label = document.createElement("span");
+      label.className = "source";
+      label.textContent = source;
+      bubble.append(label);
+    }
   }
 }
 
@@ -45,8 +58,8 @@ export function renderMessage(role, text, sources = []) {
   bubble.className = "bubble";
   if (role === "bot") formatInto(bubble, text);   // Hawk writes markdown; user text stays as typed
   else bubble.textContent = text;
+  attachSources(bubble, sources);
   row.append(bubble);
-  attachSources(row, sources);
   $("messages").append(row);
   scroll();
 }
@@ -138,7 +151,7 @@ export function finishBotBubble(row, sources = []) {
     renderStream(bubble, stream.text);
   }
   row.removeAttribute("aria-busy");
-  attachSources(row, sources);
+  if (bubble) attachSources(bubble, sources);
   scroll();
 }
 

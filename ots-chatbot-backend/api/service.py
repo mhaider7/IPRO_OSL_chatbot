@@ -8,7 +8,8 @@ from api.schemas import ChatRequest, ChatResponse, Conversation, EscalationRespo
 from config.loader import Config
 from escalation.email_builder import build_email_draft
 from llm.ollama_client import (
-    generate_answer, load_model, model_loaded, stream_answer, warm_up_in_background,
+    citation_sources, generate_answer, load_model, model_loaded,
+    stream_answer, warm_up_in_background,
 )
 from retrieval.chroma_setup import retrieve
 
@@ -26,16 +27,10 @@ class RagService:
         return latest, chunks, history
 
     def chat(self, request: ChatRequest) -> ChatResponse:
+        # Empty retrieval still goes to the LLM so greetings / "what do you cover?"
+        # can use the system prompt (Persona Exception). Context then shows
+        # "[No matching OSL material was found.]".
         latest, chunks, history = self._retrieval_args(request)
-        if not chunks:
-            return ChatResponse(
-                reply=(
-                    f"I don't have information on that in the {self.config.name} materials. "
-                    f"You can contact {self.config.name} directly or use the email option below."
-                ),
-                escalate=True,
-                escalation_reason="low_confidence",
-            )
         answer = generate_answer(
             question=latest,
             context_chunks=chunks,
@@ -43,7 +38,7 @@ class RagService:
             model=self.config.model,
             history=history,
         )
-        return ChatResponse(reply=answer)
+        return ChatResponse(reply=answer, sources=citation_sources(chunks))
 
     def chat_stream(self, request: ChatRequest) -> Generator[str, None, None]:
         """NDJSON lines: {stage} while working, then {token}s, then one {done}.
@@ -52,21 +47,15 @@ class RagService:
         "loading" (only if Ollama reports the model isn't in memory; it is loaded before
         moving on), "writing" (the model reads the material and writes; ends at the
         first token). Clients that don't know `stage` lines can ignore them.
+
+        Empty retrieval still calls the model so greetings and persona questions are
+        handled by the system prompt instead of a fixed low-confidence reply.
+
+        Handbook cites are sent only on `done.sources` (from chunk metadata), not
+        inlined into the reply text.
         """
         yield json.dumps({"stage": "searching"}) + "\n"
         latest, chunks, history = self._retrieval_args(request)
-        if not chunks:
-            yield json.dumps({
-                "done": True,
-                "reply": (
-                    f"I don't have information on that in the {self.config.name} materials. "
-                    f"You can contact {self.config.name} directly or use the email option below."
-                ),
-                "escalate": True,
-                "escalation_reason": "low_confidence",
-                "offer_options": False,
-            }) + "\n"
-            return
         if model_loaded(self.config.model) is False:   # None = Ollama unreachable: say nothing
             yield json.dumps({"stage": "loading"}) + "\n"
             load_model(self.config.model)
@@ -84,6 +73,7 @@ class RagService:
             "escalate": False,
             "escalation_reason": None,
             "offer_options": True,
+            "sources": citation_sources(chunks),
         }) + "\n"
 
     def warm_up(self) -> None:

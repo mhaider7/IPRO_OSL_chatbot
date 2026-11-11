@@ -16,9 +16,23 @@ from api.main import create_app
 from api.schemas import ChatRequest
 from config.loader import load_config
 from llm import ollama_client
+from llm.ollama_client import citation_sources
 
 CHUNK = {"text": "Reserve rooms through the 312 platform.", "source": "handbook.pdf",
          "page_start": 5, "page_end": 5}
+
+
+def test_citation_sources_dedupe_and_format_pages():
+    chunks = [
+        CHUNK,
+        {"text": "More", "source": "student_org_handbook.pdf", "page_start": 10, "page_end": 12},
+        CHUNK,  # duplicate page cite
+    ]
+    assert citation_sources(chunks) == [
+        "(handbook, p. 5)",
+        "(student org handbook, pp. 10-12)",
+    ]
+    assert citation_sources([]) == []
 
 
 @pytest.fixture(scope="module")
@@ -95,7 +109,13 @@ def test_stream_reports_searching_then_writing_when_model_loaded(fake_ollama):
     assert log.index("stage:writing") < log.index("stream_answer")
     assert_one_kind_per_line(events)
     assert "".join(e["token"] for e in events if "token" in e) == "Use the 312 platform."
-    assert events[-1] == {"done": True, "escalate": False, "escalation_reason": None, "offer_options": True}
+    assert events[-1] == {
+        "done": True,
+        "escalate": False,
+        "escalation_reason": None,
+        "offer_options": True,
+        "sources": ["(handbook, p. 5)"],
+    }
 
 
 def test_stream_loads_the_model_between_loading_and_writing(fake_ollama):
@@ -115,15 +135,22 @@ def test_stream_says_nothing_extra_when_ollama_cannot_be_asked(fake_ollama):
     assert "load_model" not in log
 
 
-def test_stream_off_topic_question_sends_only_searching_and_done(fake_ollama):
+def test_stream_empty_retrieval_still_calls_the_model(fake_ollama):
+    """No handbook match: still stream via the LLM (greetings / persona / off-topic)."""
     log, state = fake_ollama
     state["chunks"] = []
     events = run_stream(log)
-    assert stages(events) == ["searching"]
-    assert "model_loaded" not in log and "stream_answer" not in log
+    assert stages(events) == ["searching", "writing"]
+    assert "stream_answer" in log
     assert_one_kind_per_line(events)
-    assert events[-1]["escalate"] is True and events[-1]["escalation_reason"] == "low_confidence"
-    assert events[-1]["reply"]
+    assert "".join(e["token"] for e in events if "token" in e) == "Use the 312 platform."
+    assert events[-1] == {
+        "done": True,
+        "escalate": False,
+        "escalation_reason": None,
+        "offer_options": True,
+        "sources": [],
+    }
 
 
 def test_old_client_still_reads_the_whole_reply(fake_ollama):
@@ -136,6 +163,7 @@ def test_old_client_still_reads_the_whole_reply(fake_ollama):
         elif event.get("done"):
             done = event
     assert text == "Use the 312 platform." and done is not None
+    assert done["sources"] == ["(handbook, p. 5)"]
 
 
 def test_stream_endpoint_sends_ndjson_with_stages(client, fake_ollama):
@@ -237,7 +265,7 @@ def test_load_model_never_generates_and_matches_real_requests(monkeypatch):
     monkeypatch.setattr(ollama_client._client, "post", post)
     assert ollama_client.load_model("llama3.2") is True
     assert sent["url"].endswith("/api/generate")
-    assert sent["body"] == {"model": "llama3.2", "options": {"num_ctx": ollama_client.NUM_CTX},
+    assert sent["body"] == {"model": "llama3.2", "options": ollama_client.GENERATE_OPTIONS,
                             "keep_alive": ollama_client.KEEP_ALIVE}   # no prompt: nothing generated
 
 
@@ -273,7 +301,7 @@ def test_requests_use_ipv4_and_keep_alive(monkeypatch):
     tokens = list(ollama_client.stream_answer("q", [CHUNK], "system", "llama3.2"))
     assert tokens == ["Hi"]
     assert sent["keep_alive"] == ollama_client.KEEP_ALIVE
-    assert sent["options"] == {"num_ctx": ollama_client.NUM_CTX}
+    assert sent["options"] == ollama_client.GENERATE_OPTIONS
 
 
 # ── Real model ──────────────────────────────────────────────────
