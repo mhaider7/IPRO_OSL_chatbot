@@ -50,6 +50,33 @@ Adding documents to `config/docs/`:
 - **`.md` / `.txt`**: mark headings with `#`, `##`, `###`. A file with no headings falls back to paragraph splitting.
 - Sections under 150 characters are merged into a neighbour, and sections over 2,000 characters are split at paragraph breaks (`MIN_CHARS` / `MAX_CHARS` in `config/loader.py`).
 
+## Live club and event lookups (312.iit.edu)
+
+Questions like "any robotics clubs?", "free food this week?" or "tell me about event 385553" are
+answered from live public data on the 312 (CampusGroups) platform. By default (`answer_mode: direct`)
+the lookup result is shown as the answer itself, with no model in between (a small local model
+dropped and invented items when asked to rephrase lists); set `answer_mode: llm` to let the
+model phrase it instead. The handbook is not searched on turns that use a live lookup. A small keyword router
+(`web_tools/router.py`) decides when to look something up; policy questions ("how do I start a
+club?", "how do I host an event?") stay with the handbook. The result is added to the prompt as a
+"Facts from 312.iit.edu" block, and its source is added to `sources`.
+
+- **Clubs**: parsed from `https://312.iit.edu/club_signup?view=all` (cached 12 h).
+- **Events**: parsed from the public iCal feed `https://312.iit.edu/ical/iit/ical_iit.ics` (cached
+  30 min). The feed redirects to `static-prod-us-east-1.campusgroups.com`, which is allowlisted for
+  `/ical/` only. The public feed hides most locations ("Sign in to download the location") and has no
+  price or attendee data, so the bot links to the event page for those.
+- **robots.txt is enforced in code** (`web_tools/fetch/robots.py`): the Disallow rules for `/upload/`,
+  `/student_docs/`, `/downloads/`, `/mobile_ws/v17|v18/` and `*ajax_widget_new` are built in and can't
+  be overridden; they are checked on every request and every redirect hop, and only allowlisted hosts
+  are reachable. No login, credentials or auth bypass: an auth wall gives `auth_required`.
+- **Etiquette and failure**: honest `HawkBot` User-Agent with a contact (`HAWK_FETCH_CONTACT`), 2 s
+  per-host spacing, timeouts, size cap, disk cache in `ots-chatbot-backend/.cache/`. If a live fetch
+  fails, the last cached copy is served marked `stale`. A tool failure never breaks a chat reply.
+- **Settings**: optional `web_tools:` block in `config.yaml` (TTLs, spacing); `enabled: false` turns it off.
+- **Tests**: `make test` runs everything offline against fixtures in `tests/fixtures/web/`. `make smoke`
+  makes about 5 real requests to detect layout drift on 312.
+
 ## Embeddable widget
 
 Hawk is delivered as a floating "Ask Hawk" button that opens the chat in a panel on a website, such as the OSL pages.

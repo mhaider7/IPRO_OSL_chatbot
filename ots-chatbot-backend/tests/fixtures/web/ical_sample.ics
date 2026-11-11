@@ -1,0 +1,217 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:CAMPUSGROUPS
+X-WR-CALNAME:Illinois Tech
+X-PUBLISHED-TTL:PT1H
+BEGIN:VEVENT
+DTSTAMP:20261110T165405Z
+LAST-MODIFIED:20260807T213450Z
+CREATED:20260807T213336Z
+SEQUENCE:1
+ORGANIZER;CN="Office of Residence Life":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/ORL/rsvp_boot?id=382672#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:ORL
+CATEGORIES;X-CG-CATEGORY=event_type:Office Hours
+CATEGORIES;X-CG-CATEGORY=event_tags:Welcome Week
+DTSTART:20260812T180000Z
+DTEND:20260812T200000Z
+UID:9063ead06b59bfd5252de3082c6b6608872026_5:33:36_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:Residence Life Help Desk
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=382672
+DESCRIPTION:Have a question or need to make an update with Residence Life? Visit the Welcome Desk in the MTCC to get support and information from the Office of Residence Life Staff!\n---\nEvent Details: https://312.iit.edu/rsvp?id=382672
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165456Z
+LAST-MODIFIED:20261102T201642Z
+CREATED:20260824T185236Z
+SEQUENCE:2
+ORGANIZER;CN="Engineers Without Borders":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/ewb/rsvp_boot?id=383225#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:EWB
+CATEGORIES;X-CG-CATEGORY=event_type:Meeting
+DTSTART:20261110T000000Z
+DTEND:20261110T010000Z
+UID:bc52a9b8dbb8904cbf0907a29f3184ec8242026_2:52:36_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:Project Meeting
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=383225
+DESCRIPTION:Join EWB as we work on our new Bolivia Project!!\n---\nEvent Details: https://312.iit.edu/rsvp?id=383225
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165456Z
+LAST-MODIFIED:20260917T163729Z
+CREATED:20260916T213004Z
+SEQUENCE:1
+ORGANIZER;CN="Motorsports":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/sae/rsvp_boot?id=384594#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:SAE
+CATEGORIES;X-CG-CATEGORY=event_type:Meeting
+DTSTART:20261110T000000Z
+DTEND:20261110T010000Z
+UID:dce3f9199a0c2348ff7aa820640f45919162026_5:30:04_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:IIT Motorsports Software Meeting
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=384594
+DESCRIPTION:Regular software subteam meeting\n---\nEvent Details: https://312.iit.edu/rsvp?id=384594
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165457Z
+LAST-MODIFIED:20261028T150557Z
+CREATED:20261024T203047Z
+SEQUENCE:1
+ORGANIZER;CN="Boxing Club":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/box/rsvp_boot?id=385553#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:BOX
+CATEGORIES;X-CG-CATEGORY=event_type:Athletic/Sports
+DTSTART:20261110T233000Z
+DTEND:20261111T023000Z
+UID:35e43e5cc2e9c45eaf3e80df75b6141810242026_4:30:47_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:Illinois Tech Boxing General Training Session & Open Gym 
+LOCATION:TBD
+URL:https://312.iit.edu/rsvp?id=385553
+DESCRIPTION:No experience required • If you do not have boxing gear it will be provided for you.\nAll Illinois Tech students, staff & alumni welcome.\n---\nEvent Details: https://312.iit.edu/rsvp?id=385553
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165408Z
+LAST-MODIFIED:20260812T151601Z
+CREATED:20260811T134916Z
+SEQUENCE:8
+ORGANIZER;CN="Career Services":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/career/rsvp_boot?id=382720#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:CAREER
+CATEGORIES;X-CG-CATEGORY=event_type:Career Preparation
+CATEGORIES;X-CG-CATEGORY=event_tags:
+DTSTART:20260821T175000Z
+DTEND:20260821T184500Z
+UID:cf5eec297b37dd66dfd2dc3d9b08e81b8112026_9:49:16_AM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:Meet the Career Services Team (Virtual)
+LOCATION:Online Event
+URL:https://312.iit.edu/rsvp?id=382720
+DESCRIPTION:Welcome to the Fall 2026 Semester! Career Services is here for you.\n\nAttend our virtual info session where you can meet the Career Services staff, learn about our tools and resources available to you, learn about upcoming events, and ask our team questions. \n\nThis session will be hosted virtually via Microsoft Teams. We hope to see you there!\n---\nEvent Details: https://312.iit.edu/rsvp?id=382720
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165456Z
+LAST-MODIFIED:20260826T181746Z
+CREATED:20260812T182130Z
+SEQUENCE:1
+ORGANIZER;CN="Illinois Tech Bible Club":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/IITUBF/rsvp_boot?id=382770#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:IITUBF
+CATEGORIES;X-CG-CATEGORY=event_type:Spiritual
+CATEGORIES;X-CG-CATEGORY=event_tags:Free Food
+DTSTART:20261110T184500Z
+DTEND:20261110T194500Z
+UID:56a901d767765c975f810ccdd62173c38122026_2:21:30_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:Illinois Tech Bible Club: Good Word Gathering
+LOCATION:Rettaliata Engineering Center Room 034, 3201 South State Street, Chicago, Illinois 60616, United States
+URL:https://312.iit.edu/rsvp?id=382770
+DESCRIPTION:Come join the Illinois Tech Bible Club for our next Bible study! This semester's theme is Finding God in our Everyday. Each week, we'll explore what it means to lead in our community with the grace, wisdom, and love that God has shown us. Food will be provided! Whether you're brand new or have joined us before, we'd love to see you there!\n---\nEvent Details: https://312.iit.edu/rsvp?id=382770
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T175256Z
+LAST-MODIFIED:20261105T193650Z
+CREATED:20261022T183354Z
+SEQUENCE:42
+ORGANIZER;CN="Undocumented Students and Allies":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/usa/rsvp_boot?id=385496#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:USA
+CATEGORIES;X-CG-CATEGORY=event_type:Social
+CATEGORIES;X-CG-CATEGORY=event_tags:Free Food
+DTSTART:20261112T185000Z
+DTEND:20261112T195000Z
+UID:12c8083eb78e3398be9df48ac60d683710222026_2:33:54_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:🦋 Level Up: Gaming Hour with Esports 🎮 
+LOCATION:P-Club , 3201 South State Street, Chicago, Illinois 60616, United States
+URL:https://312.iit.edu/rsvp?id=385496
+DESCRIPTION:📅 When: Thursday, November 12  \n🕐 12:50 – 1:50 PM   \n📍 Where: MTCC P-Club \n\nTake a break from the grind and jump into the action! We’re teaming up with Esports for an hour of gaming, competition, and free food. Grab some food, challenge your friends, or just hang out and spectate. \n\nFree food • Free play • Good vibes. Don’t miss it! \n\nSee you there! \n~ USA 🦋 \n---\nEvent Details: https://312.iit.edu/rsvp?id=385496
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165456Z
+LAST-MODIFIED:20261103T232002Z
+CREATED:20261020T010831Z
+SEQUENCE:5
+ORGANIZER;CN="Criminal Law Society":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/CrimLS/rsvp_boot?id=385365#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:CRIMLS
+CATEGORIES;X-CG-CATEGORY=event_type:Lecture
+CATEGORIES;X-CG-CATEGORY=event_tags:Free Food,Honors College Experience
+DTSTART:20261110T180000Z
+DTEND:20261110T203000Z
+UID:48e90bc8af49872bdb89e66c81d0b35b10192026_9:08:31_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:DUI Litigation - Presentation from the CCSAO ASA Jake Mallory
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=385365
+DESCRIPTION:Ever wondered how prosecutors prove someone was impaired behind the wheel? Join the Criminal Law Society for a presentation by a Cook County prosecutor exploring the science behind DUI litigation. Learn how field forensic tools are used in DUI cases, how scientific evidence is challenged in court, and how evolving technology continues to shape the law. Discover how courts decide which scientific advancements can be trusted and what happens when the science is challenged.\n---\nEvent Details: https://312.iit.edu/rsvp?id=385365
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165457Z
+LAST-MODIFIED:20261103T231119Z
+CREATED:20261103T154436Z
+SEQUENCE:5
+ORGANIZER;CN="CK Commencement":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/CKC/rsvp_boot?id=385760#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:CKC
+CATEGORIES;X-CG-CATEGORY=event_type:Meeting
+DTSTART:20261111T160000Z
+DTEND:20261113T000000Z
+UID:3f6dd30aca7903d0710b2f3a763425821132026_10:44:36_AM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:FALL Class of 2026 Commencement Composite Photo Sign-Up
+LOCATION:Room 760, 3201 South State Street, Chicago, Illinois 60616, United States
+URL:https://312.iit.edu/rsvp?id=385760
+DESCRIPTION:SIGN UP HERE:  https://www.wejoinin.com/sheets/tenhv\n\nEach fall and spring semester, graduates are encouraged to have a composite photo taken to be part of law school history. If you've been to the 3rd floor, you've seen composite photos of the most recent class as well as classes all the way back to 1893. Now, it's your turn!\n\no	Use  sign up for a session on November 11-12, 2026 from 10 am - 6 pm in room 760, of the law school.\no	Up to three students may sign up for each 15-minute time slot. Time slots are given on a first-come, first-served basis; however, we request that those who can make a daytime spot leave the later sessions for evening students.\no	Deadline to sign up: Tuesday, November 10, 2026.\no	If you are unable to attend in November, dates in Spring will be announced. \n\nAnother date will be announced for the Class of 2027: Portraits are quick and free of charge. Digital images of your individual portrait and the composite photo will be provided free of charge, courtesy of the Alumni Association. Pricing details about purchasing prints of individual images and the composite photo will be available upon check-in with the photographers.\n\n\n\n---\nEvent Details: https://312.iit.edu/rsvp?id=385760
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165456Z
+LAST-MODIFIED:20261104T161223Z
+CREATED:20261104T030611Z
+SEQUENCE:6
+ORGANIZER;CN="iGEM club":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/iGEM/rsvp_boot?id=385770#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:IGEM
+CATEGORIES;X-CG-CATEGORY=event_type:Information Tabling
+DTSTART:20261110T184500Z
+DTEND:20261110T194500Z
+UID:272259a567812e419e99b6b1e51251f31132026_10:06:11_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:iGEM STEM Ideation & Recruitment
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=385770
+DESCRIPTION:In celebration of International STEM Week, Illinois Tech's iGEM team will host an informational and recruitment table at the MTCC. Students can learn about synthetic biology, explore our ongoing research projects, share ideas for future projects, and discover opportunities to join the team. We will also promote our upcoming general body meeting and encourage student involvement in interdisciplinary STEM research.\n---\nEvent Details: https://312.iit.edu/rsvp?id=385770
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165457Z
+LAST-MODIFIED:20261102T210002Z
+CREATED:20261026T190201Z
+SEQUENCE:5
+ORGANIZER;CN="Career Services":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/career/rsvp_boot?id=385581#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:CAREER
+CATEGORIES;X-CG-CATEGORY=event_type:Career Preparation
+CATEGORIES;X-CG-CATEGORY=event_tags:
+DTSTART:20261110T220000Z
+DTEND:20261110T224500Z
+UID:5f1c278b547b112d77bee12ca6509b2c10262026_3:02:01_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:Elevate Universe Tour: Elevate Portal Info Session
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=385581
+DESCRIPTION:Did you know you're part of the Elevate Universe?\n\nTap in and explore infinite possibilities!\n\nJoin us for a 45-minute virtual tour of the Elevate Portal (elevate.iit.edu) and discover the AI Career Coach.\n\nExplore how the Elevate Portal can help you:\n\nLEARN: Access career guides, resume resources, AI tools, and job search support.\n\nPRACTICE: Explore job simulations, virtual internships, and certifications.\n\nCONNECT: Connect with career coaches, alumni, employers, and career communities.\n\nPROVE: Showcase your achievements through badges and professional portfolios.\n\nDiscover the resources available to support your career journey through the Elevate Universe!\n---\nEvent Details: https://312.iit.edu/rsvp?id=385581
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261110T165406Z
+LAST-MODIFIED:20260813T193214Z
+CREATED:20260812T184015Z
+SEQUENCE:3
+ORGANIZER;CN="Illinois Tech Bible Club":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/IITUBF/rsvp_boot?id=382774#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:IITUBF
+CATEGORIES;X-CG-CATEGORY=event_type:Social
+CATEGORIES;X-CG-CATEGORY=event_tags:Welcome Week,Free Food,Prospective Students Welcome,New Students
+DTSTART:20260816T233000Z
+DTEND:20260817T023000Z
+UID:6cd7ebe5b36c97774759c18d5b2c00298122026_2:40:15_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:Illinois Tech Bible Club Welcome Night
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=382774
+DESCRIPTION:Kick off the semester with us at our first event of the year: Welcome Night! Join us at our Bible House for a night of free food, games, fellowship, and fun!\n\nCome meet our alumni and current members, get to know our community, learn more about who we are and what we do, and discover how you can get involved. Whether you’re already familiar with us or are meeting us for the first time, everyone is welcome!\n\nCome for the food, stay for the community—we can’t wait to meet you!\n---\nEvent Details: https://312.iit.edu/rsvp?id=382774
+END:VEVENT
+END:VCALENDAR
