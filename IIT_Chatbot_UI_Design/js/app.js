@@ -220,8 +220,7 @@ function reset({ focus = true } = {}) {
   try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
 
   document.getElementById("messages").replaceChildren();
-  document.getElementById("message").value = "";
-  document.getElementById("message").style.height = "auto";
+  // The message box is left alone: an unsent draft isn't part of the conversation being cleared.
 
   clearError();
   showChips(true);
