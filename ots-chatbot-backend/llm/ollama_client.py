@@ -66,14 +66,46 @@ def citation_sources(chunks: list[dict]) -> list[str]:
     return seen
 
 
+CHARS_PER_TOKEN = 4          # rough; enough for budgeting
+REPLY_HEADROOM_CHARS = 6000  # ~1.5k tokens left free for the answer
+HISTORY_SHARE = 0.4          # history may use at most this share of the context window
+MAX_HISTORY_TURNS = 8
+OLD_LIVE_REPLY_CHARS = 200
+LIVE_LINK = "https://312.iit.edu/"
+
+
+def fit_history(history: list[dict] | None, budget_chars: int) -> list[dict]:
+    """The most recent turns that fit `budget_chars` (and at most MAX_HISTORY_TURNS).
+
+    Ollama silently drops the *start* of an over-long prompt, which would be the system prompt.
+    Older live-lookup answers (long result lists) are cut to their first line: the latest bot turn
+    stays intact so "the second one" can still be resolved from it. The kept turns start with a
+    student message.
+    """
+    turns = list(history or [])[-MAX_HISTORY_TURNS:]
+    last_bot = max((i for i, t in enumerate(turns) if t["role"] == "bot"), default=-1)
+    slim = []
+    for i, t in enumerate(turns):
+        text = t["text"]
+        if t["role"] == "bot" and i != last_bot and LIVE_LINK in text and len(text) > OLD_LIVE_REPLY_CHARS:
+            text = "[An earlier list of 312.iit.edu results was shown here and has been omitted.]"
+        slim.append({**t, "text": text})
+    while slim and (sum(len(t["text"]) for t in slim) > budget_chars or slim[0]["role"] != "user"):
+        slim.pop(0)
+    return slim
+
+
 def _messages(question: str, context_chunks: list[dict], system_prompt: str, history: list[dict] | None,
               live_context: str | None = None) -> list[dict]:
     context = "\n\n".join(_labelled(c) for c in context_chunks) or "[No matching OSL material was found.]"
     if live_context:   # live 312.iit.edu lookup, already rendered and size-capped
         context += f"\n\n{live_context}"
-    turns = [{"role": ROLE_MAP[t["role"]], "content": t["text"]} for t in (history or [])]
+    system = f"{system_prompt}\n\nDepartment material:\n{context}"
+    window = NUM_CTX * CHARS_PER_TOKEN
+    budget = max(2000, min(int(window * HISTORY_SHARE), window - len(system) - len(question) - REPLY_HEADROOM_CHARS))
+    turns = [{"role": ROLE_MAP[t["role"]], "content": t["text"]} for t in fit_history(history, budget)]
     return [
-        {"role": "system", "content": f"{system_prompt}\n\nDepartment material:\n{context}"},
+        {"role": "system", "content": system},
         *turns,
         {"role": "user", "content": question},
     ]

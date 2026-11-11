@@ -17,6 +17,7 @@ class SearchClubsArgs(_Args):
     type: str | None = Field(None, max_length=100, description="Group type, e.g. 'Student Organization', 'Residence Hall'.")
     include_archived: bool = Field(False, description="Accepted for forward compatibility; the public listing only contains active groups.")
     limit: int = Field(10, ge=1, le=25)
+    offset: int = Field(0, ge=0, le=500, description="Skip this many matches (for 'show more').")
 
 
 class GetClubDetailsArgs(_Args):
@@ -33,6 +34,7 @@ class SearchEventsArgs(_Args):
     location_type: Literal["in_person", "online", "tbd", "hidden"] | None = None
     time_from: time | None = Field(None, description="HH:MM Central. On today's date, ignore events that ended before this time (e.g. 17:00 for 'tonight').")
     limit: int = Field(10, ge=1, le=25)
+    offset: int = Field(0, ge=0, le=500, description="Skip this many matches (for 'show more').")
 
     @field_validator("tags", mode="before")
     @classmethod

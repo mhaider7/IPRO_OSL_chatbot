@@ -130,6 +130,18 @@ class ToolCall:
         return "searching_clubs" if "club" in self.name else "searching_events"
 
 
+def _strip_filters(text: str) -> str:
+    """Leave only the words that aren't already expressed as filters (they become the free-text query)."""
+    leftover = text
+    for rx, _ in TAG_PHRASES + TYPE_PHRASES:
+        leftover = rx.sub(" ", leftover)
+    leftover = ONLINE.sub(" ", leftover)
+    leftover = re.sub(r"\b(today|tonight|tomorrow|this weekend|weekend|next week|this week|this month|next month|"
+                      r"right now|currently)\b", " ", leftover, flags=re.I)
+    leftover = re.sub(WEEKDAY_RE, " ", leftover, flags=re.I)
+    return re.sub(MONTH_RE + r"(\s+\d{1,2}(?:st|nd|rd|th)?)?", " ", leftover, flags=re.I)
+
+
 def _event_call(text: str, today: date) -> ToolCall | None:
     tags = [tag for rx, tag in TAG_PHRASES if rx.search(text)]
     types = [ty for rx, ty in TYPE_PHRASES if rx.search(text)]
@@ -157,34 +169,178 @@ def _event_call(text: str, today: date) -> ToolCall | None:
         args["event_type"] = types[0]
     if ONLINE.search(text):
         args["location_type"] = "online"
-    # Leave only words that aren't already expressed as filters, as the free-text query.
-    leftover = text
-    for rx, _ in TAG_PHRASES + TYPE_PHRASES:
-        leftover = rx.sub(" ", leftover)
-    leftover = ONLINE.sub(" ", leftover)
-    leftover = re.sub(r"\b(today|tonight|tomorrow|this weekend|weekend|next week|this week|this month|next month|"
-                      r"right now|currently)\b", " ", leftover, flags=re.I)
-    leftover = re.sub(WEEKDAY_RE, " ", leftover, flags=re.I)
-    leftover = re.sub(MONTH_RE + r"(\s+\d{1,2}(?:st|nd|rd|th)?)?", " ", leftover, flags=re.I)
+    leftover = _strip_filters(text)
     from web_tools.tools.events import event_tokens   # local import: keeps router import-light
     if event_tokens(leftover):
         args["query"] = leftover.strip()
     return ToolCall("search_events", args, intent="location" if WHERE.search(text) else None)
 
 
-def route(message: str, known_club_names: set[str] | None = None, today: date | None = None) -> ToolCall | None:
+# ---- follow-ups (multi-turn) ---------------------------------------------------------------------
+# A follow-up is resolved from the previous exchange only: the last bot message (its list of results)
+# and the student message before it (re-routed to recover the tool call that produced that list).
+OPENER = re.compile(r"^\s*(?:ok(?:ay)?[, ]+)?(?:and|also|but|so|then|what about|how about|what else)\b[ ,]*", re.I)
+MORE = re.compile(
+    r"^\W*(?:are there |is there |any |show me |show |give me |see )?(?:any )?"
+    r"(?:more|others|other ones|anything else|what else|something else|the rest|next)"
+    r"(?: (?:results?|ones?|clubs?|events?|options?))?\W*$", re.I)
+ORDINALS = {"first": 0, "1st": 0, "second": 1, "2nd": 1, "third": 2, "3rd": 2, "fourth": 3, "4th": 3,
+            "fifth": 4, "5th": 4, "sixth": 5, "6th": 5, "last": -1}
+ORDINAL_RE = re.compile(r"\b(" + "|".join(ORDINALS) + r")\b(?=\s+(?:one|event|club|org|organi[sz]ation|result|item|"
+                        r"option|group)\b|\W*$)", re.I)
+NUMBER_RE = re.compile(r"(?:#|\bnumber\s+|\bno\.?\s*|\boption\s+|\bitem\s+|\bresult\s+)(\d)\b", re.I)
+ITEM_RE = re.compile(r"^- \*\*(?P<name>.+?)\*\* — .*\]\((?P<url>https?://[^)\s]+)\)\s*$", re.M)
+PRON_REF = re.compile(r"\b(they|their|them|it|its|that club|this club|the club)\b", re.I)
+FOLLOWUP_MAX_WORDS = 14
+
+
+@dataclass
+class Item:
+    name: str
+    url: str
+
+    @property
+    def event_id(self) -> str | None:
+        m = re.search(r"[?&]id=(\d+)", self.url)
+        return m.group(1) if m and "312.iit.edu" in self.url else None
+
+
+def list_items(bot_text: str) -> list[Item]:
+    """The bulleted results ('- **Name** ... [link](url)') in a previous bot message, in order."""
+    return [Item(m["name"].strip(), m["url"]) for m in ITEM_RE.finditer(bot_text or "")]
+
+
+def ordinal_index(text: str) -> int | None:
+    """0-based position from 'the second one', '#3', 'the last one'; None if the message has none."""
+    m = ORDINAL_RE.search(text)
+    if m:
+        return ORDINALS[m.group(1).lower()]
+    m = NUMBER_RE.search(text)
+    return int(m.group(1)) - 1 if m and int(m.group(1)) >= 1 else None
+
+
+def _prior(history: list[dict], known: set[str] | None, today: date, max_back: int = 1) -> ToolCall | None:
+    """The tool call behind the last bot message (None if it wasn't a live lookup). With max_back > 1,
+    keeps looking through earlier exchanges (e.g. a handbook answer in between) for the last live one."""
+    end = len(history)
+    for _ in range(max_back):
+        if end < 2 or history[end - 1]["role"] != "bot" or history[end - 2]["role"] != "user":
+            return None
+        call = route(history[end - 2]["text"], known, today, history[:end - 2])
+        if call:
+            return call
+        end -= 2
+    return None
+
+
+def _item_call(item: Item, text: str) -> ToolCall:
+    if item.event_id:
+        return ToolCall("get_event_details", {"event_id_or_url": item.event_id},
+                        intent="location" if WHERE.search(text) else None)
+    return ToolCall("get_club_details", {"slug": item.name},
+                    fallback=ToolCall("search_clubs", {"query": item.name, "limit": CLUB_LIMIT}))
+
+
+def _reference_call(text: str, history: list[dict], known: set[str] | None, today: date) -> ToolCall | None:
+    """Follow-ups that point at the last answer: 'the second one', 'more', 'what events do they have?'."""
+    if len(text.split()) > FOLLOWUP_MAX_WORDS:
+        return None
+    items = list_items(history[-1]["text"]) if history[-1]["role"] == "bot" else []
+    idx = ordinal_index(text)
+    if idx is not None and -len(items) <= idx < len(items):
+        return _item_call(items[idx], text)
+    if MORE.match(text):
+        prior = _prior(history, known, today)
+        if prior and prior.name in ("search_events", "search_clubs"):
+            args = dict(prior.args)
+            # Skip what was actually shown (the renderer may have dropped some to fit), not just `limit`.
+            args["offset"] = args.get("offset", 0) + (len(items) or args.get("limit", EVENT_LIMIT))
+            return ToolCall(prior.name, args)
+    if PRON_REF.search(text) and EVENT_NOUN.search(text):
+        prior = _prior(history, known, today)
+        if prior and prior.name == "get_club_details":
+            return ToolCall("search_events", {"limit": EVENT_LIMIT, "query": prior.args["slug"]},
+                            intent="location" if WHERE.search(text) else None)
+    return None
+
+
+def _refine_call(text: str, history: list[dict], known: set[str] | None, today: date) -> ToolCall | None:
+    """Follow-ups that change the last search: 'what about tomorrow?', 'and online?', 'how about music?'.
+    Only tried after normal routing found nothing, so full questions are never hijacked."""
+    if len(text.split()) > FOLLOWUP_MAX_WORDS or CLUB_NOUN.search(text):
+        return None
+    opener = OPENER.match(text)
+    dates = parse_dates(text, today)
+    tags = [tag for rx, tag in TAG_PHRASES if rx.search(text)]
+    types = [ty for rx, ty in TYPE_PHRASES if rx.search(text)]
+    online = bool(ONLINE.search(text))
+    if not opener and not ((dates or tags or types or online) and len(text.split()) <= 4):
+        return None
+    prior = _prior(history, known, today, max_back=3)
+    if prior is None:
+        return None
+    rest = text[opener.end():] if opener else text
+
+    # a named item from the last list: 'tell me more about the robotics one' / 'the Hackathon Kickoff'
+    items = list_items(history[-1]["text"])
+    lowered = text.lower()
+    named = [i for i in items if len(i.name) >= 3 and i.name.lower() in lowered]
+    if len(named) == 1:
+        return _item_call(named[0], text)
+
+    if prior.name == "search_events":
+        args = {k: v for k, v in prior.args.items() if k != "offset"}
+        changed = False
+        if dates:
+            args["date_from"], args["date_to"] = dates[0].isoformat(), dates[1].isoformat()
+            args.pop("time_from", None)
+            changed = True
+        if re.search(r"\btonight\b", text, re.I):
+            args["time_from"] = "17:00"
+        if tags:
+            args["tags"], changed = tags, True
+        if types:
+            args["event_type"], changed = types[0], True
+        if online:
+            args["location_type"], changed = "online", True
+        from web_tools.tools.events import event_tokens
+        leftover = _strip_filters(rest)
+        if event_tokens(leftover):
+            args["query"], changed = leftover.strip(" ?!."), True
+        return ToolCall("search_events", args) if changed else None
+    if prior.name == "search_clubs" and opener:
+        from web_tools.tools.clubs import tokens as club_tokens
+        topic = _strip_filters(rest).strip(" ?!.")          # 'how about tomorrow?' is not a club topic
+        if club_tokens(topic):
+            return ToolCall("search_clubs", {"query": topic, "limit": CLUB_LIMIT})
+    return None
+
+
+def route(message: str, known_club_names: set[str] | None = None, today: date | None = None,
+          history: list[dict] | None = None) -> ToolCall | None:
+    """`history` = the messages before `message` ({"role": "user"|"bot", "text": ...}); it lets short
+    follow-ups ('what about tomorrow?', 'tell me about the second one', 'more') resolve."""
     text = message.strip()
     if not text or len(text) > 400 or HANDBOOK_CUES.search(text) or HANDBOOK_SELF.search(text):
         return None
     today = today or datetime.now(CHI).date()
+    history = history or []
 
     m = EVENT_ID.search(text)
     if m:
         return ToolCall("get_event_details", {"event_id_or_url": m.group(1)},
                         intent="location" if WHERE.search(text) else None)
+    if history:
+        call = _reference_call(text, history, known_club_names, today)
+        if call:
+            return call
     call = _event_call(text, today)
     if call:
         return call
+    if history:
+        call = _refine_call(text, history, known_club_names, today)
+        if call:
+            return call
 
     m = DETAILS.search(text)
     if m:
@@ -196,6 +352,8 @@ def route(message: str, known_club_names: set[str] | None = None, today: date | 
                 return ToolCall("get_club_details", {"slug": name},
                                 fallback=ToolCall("search_clubs", {"query": name, "limit": CLUB_LIMIT}))
 
-    if CLUB_NOUN.search(text) and (DISCOVERY.search(text) or len(text.split()) <= 10):
+    # A short reply to a question the bot just asked ("for my club's trip") is an answer, not a club search.
+    answering = bool(history) and history[-1]["role"] == "bot" and history[-1]["text"].rstrip().endswith("?")
+    if CLUB_NOUN.search(text) and (DISCOVERY.search(text) or (len(text.split()) <= 10 and not answering)):
         return ToolCall("search_clubs", {"query": text, "limit": CLUB_LIMIT})
     return None

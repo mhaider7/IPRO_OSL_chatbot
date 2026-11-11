@@ -5,6 +5,7 @@ from typing import Generator
 
 import chromadb
 
+from api.conversation import retrieval_query
 from api.schemas import ChatRequest, ChatResponse, Conversation, EscalationResponse
 from config.loader import Config
 from escalation.email_builder import build_email_draft
@@ -33,12 +34,12 @@ class RagService:
             self._web_tools = get_default_tools(self.config.web_tools)
         return self._web_tools
 
-    def _live_call(self, latest: str) -> ToolCall | None:
+    def _live_call(self, latest: str, history: list[dict] | None = None) -> ToolCall | None:
         """Which live tool (if any) this message needs. Never raises, and builds no fetcher
-        unless the message actually matches a lookup."""
+        unless the message actually matches a lookup. `history` lets follow-ups resolve."""
         try:
             known = self._web_tools.known_club_names() if self._web_tools else None
-            call = route_live_lookup(latest, known)
+            call = route_live_lookup(latest, known, history=history)
             if call is None or self._tools() is None:
                 return None
             return call
@@ -77,7 +78,7 @@ class RagService:
 
     def _retrieval_args(self, request: ChatRequest) -> tuple[str, list[dict], list[dict]]:
         latest, history = self._parse(request)
-        return latest, retrieve(self.collection, latest), history
+        return latest, retrieve(self.collection, retrieval_query(latest, history)), history
 
     @staticmethod
     def _chunks_of_text(text: str):
@@ -90,11 +91,11 @@ class RagService:
         # can use the system prompt (Persona Exception). Context then shows
         # "[No matching OSL material was found.]".
         latest, history = self._parse(request)
-        call = self._live_call(latest)
+        call = self._live_call(latest, history)
         live, live_sources = self._run_live(call) if call else (None, [])
         if call and live and self._direct():
             return ChatResponse(reply=live, sources=live_sources)
-        chunks = [] if live else retrieve(self.collection, latest)   # live data replaces handbook noise
+        chunks = [] if live else retrieve(self.collection, retrieval_query(latest, history))   # live data replaces handbook noise
         extra = {"live_context": live} if live else {}
         answer = generate_answer(
             question=latest,
@@ -126,7 +127,7 @@ class RagService:
         inlined into the reply text.
         """
         latest, history = self._parse(request)
-        call = self._live_call(latest)
+        call = self._live_call(latest, history)
         live, live_sources = None, []
         if call:
             yield json.dumps({"stage": call.stage}) + "\n"
@@ -141,7 +142,7 @@ class RagService:
                 return
         else:
             yield json.dumps({"stage": "searching"}) + "\n"
-        chunks = [] if live else retrieve(self.collection, latest)
+        chunks = [] if live else retrieve(self.collection, retrieval_query(latest, history))
         if model_loaded(self.config.model) is False:   # None = Ollama unreachable: say nothing
             yield json.dumps({"stage": "loading"}) + "\n"
             load_model(self.config.model)
