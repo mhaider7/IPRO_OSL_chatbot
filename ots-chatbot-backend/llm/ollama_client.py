@@ -66,8 +66,11 @@ def citation_sources(chunks: list[dict]) -> list[str]:
     return seen
 
 
-def _messages(question: str, context_chunks: list[dict], system_prompt: str, history: list[dict] | None) -> list[dict]:
+def _messages(question: str, context_chunks: list[dict], system_prompt: str, history: list[dict] | None,
+              live_context: str | None = None) -> list[dict]:
     context = "\n\n".join(_labelled(c) for c in context_chunks) or "[No matching OSL material was found.]"
+    if live_context:   # live 312.iit.edu lookup, already rendered and size-capped
+        context += f"\n\n{live_context}"
     turns = [{"role": ROLE_MAP[t["role"]], "content": t["text"]} for t in (history or [])]
     return [
         {"role": "system", "content": f"{system_prompt}\n\nDepartment material:\n{context}"},
@@ -122,11 +125,12 @@ def generate_answer(
     system_prompt: str,
     model: str,
     history: list[dict] | None = None,
+    live_context: str | None = None,
 ) -> str:
     try:
         response = _client.post(OLLAMA_URL, json={
             "model": model,
-            "messages": _messages(question, context_chunks, system_prompt, history),
+            "messages": _messages(question, context_chunks, system_prompt, history, live_context),
             "stream": False,
             "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
@@ -147,11 +151,12 @@ def stream_answer(
     system_prompt: str,
     model: str,
     history: list[dict] | None = None,
+    live_context: str | None = None,
 ) -> Generator[str, None, None]:
     try:
         with _client.stream("POST", OLLAMA_URL, json={
             "model": model,
-            "messages": _messages(question, context_chunks, system_prompt, history),
+            "messages": _messages(question, context_chunks, system_prompt, history, live_context),
             "stream": True,
             "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,

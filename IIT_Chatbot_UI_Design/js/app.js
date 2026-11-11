@@ -22,6 +22,8 @@ const GREETING =
 // Text for the stages the server reports while it works on a reply (see api.js).
 const STAGES = {
   searching: "Searching the handbook…",
+  searching_clubs:  "Looking up clubs on 312…",
+  searching_events: "Looking up events on 312…",
   loading:   "Starting up…",
   writing:   "Writing an answer…",
 };

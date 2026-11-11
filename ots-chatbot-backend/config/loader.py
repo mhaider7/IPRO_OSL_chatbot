@@ -8,7 +8,7 @@ Documents with neither fall back to paragraph splitting.
 import logging
 import re
 from bisect import bisect_right
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -30,6 +30,7 @@ class Config:
     docs_path: Path
     model: str
     system_prompt: str
+    web_tools: dict = field(default_factory=dict)   # optional overrides for web_tools.config
 
 
 @dataclass
@@ -64,6 +65,7 @@ def load_config() -> Config:
         docs_path=(BASE.parent / raw["docs_path"]).resolve(),
         model=raw["model"],
         system_prompt=raw["system_prompt"].strip(),
+        web_tools=raw.get("web_tools") or {},
     )
 
 

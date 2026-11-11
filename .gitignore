@@ -12,3 +12,4 @@ ots-chatbot-backend/.chroma/
 *.gguf
 .playwright-mcp/
 notes.txt
+ots-chatbot-backend/.cache/

@@ -1,0 +1,40 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:CAMPUSGROUPS
+X-WR-CALNAME:Chicago-Kent Clinic
+X-PUBLISHED-TTL:PT1H
+BEGIN:VEVENT
+DTSTAMP:20261016T165118Z
+LAST-MODIFIED:20261016T164736Z
+CREATED:20261016T141810Z
+SEQUENCE:5
+ORGANIZER;CN="Chicago-Kent Clinic":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/CKclinic/rsvp_boot?id=385268#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:CKCLINIC
+CATEGORIES;X-CG-CATEGORY=event_type:Educational/Awareness
+DTSTART:20261027T170000Z
+DTEND:20261027T180000Z
+UID:ef2cfd313cdba000ff77378b5fbcb06010162026_10:18:10_AM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:Clinic and Externship Student Information Session
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=385268
+DESCRIPTION:Learn by doing!  Students who are interested in experiential learning by working with attorneys in a clinic or externship are invited to a session on Tuesday, October 27 at 12:00 p.m. in Room 590\n---\nEvent Details: https://312.iit.edu/rsvp?id=385268
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261016T170231Z
+LAST-MODIFIED:20261016T165809Z
+CREATED:20261016T164924Z
+SEQUENCE:3
+ORGANIZER;CN="Chicago-Kent Clinic":mailto:noreply@312.iit.edu
+CONTACT:https://312.iit.edu/CKclinic/rsvp_boot?id=385272#event_host
+CATEGORIES;X-CG-CATEGORY=club_acronym:CKCLINIC
+CATEGORIES;X-CG-CATEGORY=event_type:Academic
+DTSTART:20261016T180000Z
+DTEND:20261102T190000Z
+UID:ffb4bc63c38fda264ec1a71ce694069110162026_12:49:24_PM@campusgroups.com
+SUMMARY;ENCODING=QUOTED-PRINTABLE:C-K Law Group – JD student applications for the Spring semester
+LOCATION: Sign in to download the location
+URL:https://312.iit.edu/rsvp?id=385272
+DESCRIPTION:Get legal experience working with a practicing attorney on real client matters\nhere on campus, and earn law school credit\n\nC-K Law Group JD student applications for the Spring semester are due on\nMonday, November 2 at 5:00 p.m. For more information and a link to the\napplication visit our webpage\n\n---\nEvent Details: https://312.iit.edu/rsvp?id=385272
+END:VEVENT
+END:VCALENDAR
