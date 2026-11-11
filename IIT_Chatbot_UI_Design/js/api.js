@@ -5,6 +5,10 @@
 
 const TIMEOUT_MS = 120000;
 
+// The server accepts only { role, text } per message. Our local history also keeps extras
+// (e.g. `sources`, used to redraw the citations), so strip them before every request.
+const wire = (messages) => messages.map(({ role, text }) => ({ role, text }));
+
 async function post(path, body, signal) {
   const res = await fetch(path, {
     method: "POST",
@@ -30,7 +34,7 @@ export function makeAbortController() {
 }
 
 export function chatRequest(messages, signal) {
-  return post("/api/chat", { messages }, signal);
+  return post("/api/chat", { messages: wire(messages) }, signal);
 }
 
 // Asks the server to load the model in the background. Fire and forget: a failure
@@ -49,7 +53,7 @@ export async function* chatStreamRequest(messages, signal) {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages: wire(messages) }),
     signal,
   });
   if (!res.ok) {
@@ -76,5 +80,5 @@ export async function* chatStreamRequest(messages, signal) {
 }
 
 export function escalateRequest(messages, signal) {
-  return post("/api/escalate", { messages }, signal);
+  return post("/api/escalate", { messages: wire(messages) }, signal);
 }
