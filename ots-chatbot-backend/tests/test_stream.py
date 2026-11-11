@@ -16,9 +16,23 @@ from api.main import create_app
 from api.schemas import ChatRequest
 from config.loader import load_config
 from llm import ollama_client
+from llm.ollama_client import citation_sources
 
 CHUNK = {"text": "Reserve rooms through the 312 platform.", "source": "handbook.pdf",
          "page_start": 5, "page_end": 5}
+
+
+def test_citation_sources_dedupe_and_format_pages():
+    chunks = [
+        CHUNK,
+        {"text": "More", "source": "student_org_handbook.pdf", "page_start": 10, "page_end": 12},
+        CHUNK,  # duplicate page cite
+    ]
+    assert citation_sources(chunks) == [
+        "(handbook, p. 5)",
+        "(student org handbook, pp. 10-12)",
+    ]
+    assert citation_sources([]) == []
 
 
 @pytest.fixture(scope="module")
@@ -95,7 +109,13 @@ def test_stream_reports_searching_then_writing_when_model_loaded(fake_ollama):
     assert log.index("stage:writing") < log.index("stream_answer")
     assert_one_kind_per_line(events)
     assert "".join(e["token"] for e in events if "token" in e) == "Use the 312 platform."
-    assert events[-1] == {"done": True, "escalate": False, "escalation_reason": None, "offer_options": True}
+    assert events[-1] == {
+        "done": True,
+        "escalate": False,
+        "escalation_reason": None,
+        "offer_options": True,
+        "sources": ["(handbook, p. 5)"],
+    }
 
 
 def test_stream_loads_the_model_between_loading_and_writing(fake_ollama):
@@ -123,7 +143,14 @@ def test_stream_empty_retrieval_still_calls_the_model(fake_ollama):
     assert stages(events) == ["searching", "writing"]
     assert "stream_answer" in log
     assert_one_kind_per_line(events)
-    assert events[-1] == {"done": True, "escalate": False, "escalation_reason": None, "offer_options": True}
+    assert "".join(e["token"] for e in events if "token" in e) == "Use the 312 platform."
+    assert events[-1] == {
+        "done": True,
+        "escalate": False,
+        "escalation_reason": None,
+        "offer_options": True,
+        "sources": [],
+    }
 
 
 def test_old_client_still_reads_the_whole_reply(fake_ollama):
@@ -136,6 +163,7 @@ def test_old_client_still_reads_the_whole_reply(fake_ollama):
         elif event.get("done"):
             done = event
     assert text == "Use the 312 platform." and done is not None
+    assert done["sources"] == ["(handbook, p. 5)"]
 
 
 def test_stream_endpoint_sends_ndjson_with_stages(client, fake_ollama):

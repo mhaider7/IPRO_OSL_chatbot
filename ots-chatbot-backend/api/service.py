@@ -8,7 +8,8 @@ from api.schemas import ChatRequest, ChatResponse, Conversation, EscalationRespo
 from config.loader import Config
 from escalation.email_builder import build_email_draft
 from llm.ollama_client import (
-    generate_answer, load_model, model_loaded, stream_answer, warm_up_in_background,
+    citation_sources, generate_answer, load_model, model_loaded,
+    stream_answer, warm_up_in_background,
 )
 from retrieval.chroma_setup import retrieve
 
@@ -37,7 +38,7 @@ class RagService:
             model=self.config.model,
             history=history,
         )
-        return ChatResponse(reply=answer)
+        return ChatResponse(reply=answer, sources=citation_sources(chunks))
 
     def chat_stream(self, request: ChatRequest) -> Generator[str, None, None]:
         """NDJSON lines: {stage} while working, then {token}s, then one {done}.
@@ -49,6 +50,9 @@ class RagService:
 
         Empty retrieval still calls the model so greetings and persona questions are
         handled by the system prompt instead of a fixed low-confidence reply.
+
+        Handbook cites are sent only on `done.sources` (from chunk metadata), not
+        inlined into the reply text.
         """
         yield json.dumps({"stage": "searching"}) + "\n"
         latest, chunks, history = self._retrieval_args(request)
@@ -69,6 +73,7 @@ class RagService:
             "escalate": False,
             "escalation_reason": None,
             "offer_options": True,
+            "sources": citation_sources(chunks),
         }) + "\n"
 
     def warm_up(self) -> None:

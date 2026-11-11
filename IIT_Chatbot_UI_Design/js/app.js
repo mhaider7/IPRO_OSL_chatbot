@@ -79,7 +79,8 @@ function restore() {
   try { saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY)); } catch { return false; }
   if (!saved || !Array.isArray(saved.history) || saved.history.length === 0) return false;
   const validHistory = saved.history.every(
-    (m) => m && (m.role === "user" || m.role === "bot") && typeof m.text === "string"
+    (m) => m && (m.role === "user" || m.role === "bot") && typeof m.text === "string" &&
+      (m.sources === undefined || (Array.isArray(m.sources) && m.sources.every((s) => typeof s === "string")))
   );
   if (!validHistory || typeof saved.escalating !== "boolean" || typeof saved.completed !== "boolean") return false;
   if (saved.completed) return false;
@@ -88,7 +89,7 @@ function restore() {
   escalating = saved.escalating;
 
   renderMessage("bot", GREETING);
-  for (const turn of history) renderMessage(turn.role, turn.text);
+  for (const turn of history) renderMessage(turn.role, turn.text, turn.sources || []);
   showChips(false);
   showOptions(saved.offerOptions);
   controls();
@@ -134,8 +135,9 @@ async function execute() {
           // Low-confidence fallback ("I don't have information on that..."): the server
           // sends no tokens, only the whole reply in the done event. Show it the same way.
           if (!fullText) appendToken(bubble, text);
-          history.push({ role: "bot", text: text });
-          finishBotBubble(row, event.sources || []);
+          const sources = event.sources || [];
+          history.push({ role: "bot", text: text, sources });
+          finishBotBubble(row, sources);
           showOptions(event.offer_options ?? true);
           pending = null;
           save();

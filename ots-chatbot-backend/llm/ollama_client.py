@@ -35,16 +35,35 @@ _warming = threading.Lock()
 ROLE_MAP = {"user": "user", "bot": "assistant"}
 
 
-def _labelled(chunk: dict) -> str:
-    """Prefix a chunk with its source and page so the model can cite it."""
-    source = Path(chunk.get("source", "")).stem.replace("_", " ")
+def _source_name(chunk: dict) -> str:
+    return Path(chunk.get("source", "")).stem.replace("_", " ") or "handbook"
+
+
+def _page_label(chunk: dict) -> str | None:
     start, end = chunk.get("page_start"), chunk.get("page_end")
     if start is None:
-        where = source
-    else:
-        pages = f"p. {start}" if start == end else f"pp. {start}-{end}"
-        where = f"{source}, {pages}"
+        return None
+    return f"p. {start}" if start == end else f"pp. {start}-{end}"
+
+
+def _labelled(chunk: dict) -> str:
+    """Prefix a chunk with its source and page so the model can cite it."""
+    source = _source_name(chunk)
+    pages = _page_label(chunk)
+    where = f"{source}, {pages}" if pages else source
     return f"[Source: {where}]\n{chunk['text']}" if where else chunk["text"]
+
+
+def citation_sources(chunks: list[dict]) -> list[str]:
+    """Deduped handbook cites for the UI/API, e.g. '(student org handbook, p. 28)'."""
+    seen: list[str] = []
+    for chunk in chunks:
+        name = _source_name(chunk)
+        pages = _page_label(chunk)
+        cite = f"({name}, {pages})" if pages else f"({name})"
+        if cite not in seen:
+            seen.append(cite)
+    return seen
 
 
 def _messages(question: str, context_chunks: list[dict], system_prompt: str, history: list[dict] | None) -> list[dict]:

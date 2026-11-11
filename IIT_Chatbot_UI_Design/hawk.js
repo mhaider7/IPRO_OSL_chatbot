@@ -36,21 +36,32 @@
     const bubble = document.createElement("div");
     bubble.className = "bubble";
     bubble.textContent = text;
-    row.append(bubble);
     for (const source of sources) {
-      // Never render arbitrary model output as HTML or executable links.
-      try {
-        const url = new URL(source.startsWith("https://") ? source : `https://${source}`);
-        if (url.protocol !== "https:" || !url.hostname.includes(".")) continue;
+      if (typeof source !== "string" || !source.trim()) continue;
+      // Handbook cites are plain labels; only real https URLs become links.
+      let href = null;
+      if (/^https:\/\//i.test(source)) {
+        try {
+          const url = new URL(source);
+          if (url.protocol === "https:" && url.hostname.includes(".")) href = url.href;
+        } catch { /* plain text below */ }
+      }
+      if (href) {
         const link = document.createElement("a");
         link.className = "source";
-        link.href = url.href;
+        link.href = href;
         link.textContent = source;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        row.append(link);
-      } catch { /* Ignore unusable source URLs. */ }
+        bubble.append(link);
+      } else {
+        const label = document.createElement("span");
+        label.className = "source";
+        label.textContent = source;
+        bubble.append(label);
+      }
     }
+    row.append(bubble);
     $("messages").append(row);
     scroll();
   }
