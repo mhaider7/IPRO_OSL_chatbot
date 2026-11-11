@@ -126,3 +126,117 @@ def test_parse_dates(text, expected):
 def test_weekend_when_already_weekend():
     assert parse_dates("this weekend", date(2026, 11, 14)) == (date(2026, 11, 14), date(2026, 11, 15))
     assert parse_dates("this weekend", date(2026, 11, 15)) == (date(2026, 11, 15), date(2026, 11, 15))
+
+
+# ---- multi-turn follow-ups ----------------------------------------------------------------------
+def u(t): return {"role": "user", "text": t}
+def b(t): return {"role": "bot", "text": t}
+
+
+EVENT_LIST = (
+    "Here's what's on 312 from **Tue Nov 10** to **Sun Nov 15** (Central time, as of now):\n\n"
+    "- **Pizza Night** — Tue Nov 10, 6:00 PM–7:00 PM Central · Chess Club · Free Food. [event page](https://312.iit.edu/rsvp?id=111)\n"
+    "  Come eat.\n"
+    "- **Robotics Demo** — Wed Nov 11, 5:00 PM Central · Robotics Club. [event page](https://312.iit.edu/rsvp?id=222)\n"
+    "- **Career Fair Prep** — Thu Nov 12, 4:00 PM Central · Career Services. [event page](https://312.iit.edu/rsvp?id=333)\n"
+    "\nShowing 3 of 9. See all at https://312.iit.edu/events"
+)
+CLUB_LIST = (
+    "Here are clubs on 312 (as of now):\n\n"
+    "- **Robotics Club** — Student Organization (Engineering). [312 page](https://312.iit.edu/robotics/)\n"
+    "- **Drone Team** — Student Organization. [312 page](https://312.iit.edu/drone/)\n"
+)
+EV_HIST = [u("Is there any free food this week?"), b(EVENT_LIST)]
+CLUB_HIST = [u("any clubs about robotics?"), b(CLUB_LIST)]
+
+
+def fu(msg, hist, today=TUE, known=None):
+    return route(msg, known, today, hist)
+
+
+@pytest.mark.parametrize("msg,idx_id", [
+    ("tell me about the second one", "222"), ("what about the first one?", "111"),
+    ("when is the last one?", "333"), ("more on #3", "333"), ("tell me more about the third event", "333"),
+])
+def test_ordinal_reference_resolves_event(msg, idx_id):
+    call = fu(msg, EV_HIST)
+    assert call.name == "get_event_details" and call.args == {"event_id_or_url": idx_id}
+
+
+def test_ordinal_reference_resolves_club_and_location_intent():
+    call = fu("tell me about the second one", CLUB_HIST)
+    assert call.name == "get_club_details" and call.args["slug"] == "Drone Team"
+    assert call.fallback.name == "search_clubs"
+    assert fu("where is the first one?", EV_HIST).intent == "location"
+
+
+def test_ordinal_out_of_range_or_not_a_reference_is_ignored():
+    assert fu("tell me about the sixth one", EV_HIST) is None
+    assert fu("any events for first year students?", EV_HIST).args.get("query")   # normal event search, not item 1
+    assert fu("tell me about the second one", [u("hi"), b("Hello!")]) is None
+
+
+def test_refine_date():
+    call = fu("what about tomorrow?", EV_HIST)
+    assert call.name == "search_events"
+    assert call.args == {"limit": 6, "date_from": "2026-11-11", "date_to": "2026-11-11", "tags": ["Free Food"]}
+
+
+def test_refine_bare_date_and_online():
+    assert fu("on Friday?", EV_HIST).args["date_from"] == "2026-11-13"
+    call = fu("and online?", EV_HIST)
+    assert call.args["location_type"] == "online" and call.args["tags"] == ["Free Food"]
+
+
+def test_refine_swaps_tag_and_topic():
+    assert fu("how about career events?", EV_HIST).args["event_type"] == "Career Preparation"
+    assert fu("what about robotics?", EV_HIST).args["query"] == "robotics"
+
+
+def test_refine_clubs_new_interest():
+    call = fu("how about music?", CLUB_HIST)
+    assert call.name == "search_clubs" and call.args["query"] == "music"
+
+
+def test_more_pages_by_what_was_shown():
+    call = fu("more", EV_HIST)
+    assert call.name == "search_events" and call.args["offset"] == 3 and call.args["tags"] == ["Free Food"]
+    again = fu("show more", EV_HIST + [u("more"), b(EVENT_LIST)])      # a second "more" keeps paging
+    assert again.args["offset"] == 6
+    assert fu("anything else?", CLUB_HIST).args == {"query": "any clubs about robotics?", "limit": 5, "offset": 2}
+
+
+def test_more_without_a_live_answer_is_ignored():
+    assert fu("more", [u("hi"), b("Hello!")]) is None
+
+
+def test_club_pronoun_events():
+    hist = [u("tell me about the Boxing Club"), b("- **Boxing Club** — x. [312 page](https://312.iit.edu/box/)")]
+    call = fu("what events do they have?", hist)
+    assert call.name == "search_events" and call.args["query"] == "Boxing"
+
+
+def test_followup_policy_question_still_goes_to_handbook():
+    assert fu("what's the deadline for that?", EV_HIST) is None
+    assert fu("how do I register it?", CLUB_HIST) is None
+
+
+def test_standalone_questions_unaffected_by_history():
+    assert fu("any clubs about music?", EV_HIST).name == "search_clubs"
+    assert fu("any events tonight?", CLUB_HIST).name == "search_events"
+    assert fu("Hello!", EV_HIST) is None
+
+
+def test_refine_looks_back_past_a_handbook_turn():
+    hist = CLUB_HIST + [u("How do I start a club?"), b("1. Complete the registration form.")]
+    call = fu("what about dance?", hist)
+    assert call.name == "search_clubs" and call.args["query"] == "dance"
+    assert fu("how about tomorrow?", hist) is None          # club search has nothing to re-date
+    assert fu("more", hist) is None                          # paging only applies to the immediately previous answer
+
+
+def test_short_answer_to_a_bot_question_is_not_a_club_search():
+    ask = [u("How do I get money?"), b("Would you like to know about fundraising or Finance Board?")]
+    assert fu("for my club's trip", ask) is None
+    assert fu("any clubs about hiking?", ask).name == "search_clubs"          # a real discovery cue still routes
+    assert fu("for my club's trip", [u("hi"), b("Hello!")]).name == "search_clubs"   # unchanged without a question

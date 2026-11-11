@@ -99,7 +99,7 @@ def render_for_prompt(env: dict, max_chars: int = MAX_CHARS) -> str:
         if not data["events"]:
             return f"{head}\nNo matching events found. {data.get('hint', '')}".strip()
         body, shown = _fit(_event_line, data["events"], head, max_chars, (200, 100, 0))
-        extra = data.get("total_matches", shown) - shown
+        extra = data.get("total_matches", shown) - data.get("offset", 0) - shown
         if extra > 0:
             body += f"\n(+{extra} more events not shown; browse all at https://312.iit.edu/events)"
             env["truncated"] = True
@@ -128,7 +128,7 @@ def render_for_prompt(env: dict, max_chars: int = MAX_CHARS) -> str:
         while shown > 1 and len(head) + len("\n".join(lines[:shown])) > max_chars:
             shown -= 1
         body = "\n".join(lines[:shown])
-        extra = data.get("total_matches", shown) - shown
+        extra = data.get("total_matches", shown) - data.get("offset", 0) - shown
         if extra > 0:
             body += f"\n(+{extra} more matches not shown; browse all at https://312.iit.edu/club_signup?view=all)"
             env["truncated"] = True
@@ -198,6 +198,14 @@ def _span(w: dict) -> str:
     return f"on **{fmt(f)}**" if f == t else f"from **{fmt(f)}** to **{fmt(t)}**"
 
 
+def _range_note(shown: int, data: dict, browse: str) -> tuple[str, int]:
+    """('Showing 7-12 of 20. See all at ...', how many are left after this page)."""
+    offset, total = data.get("offset", 0), data["total_matches"]
+    left = total - offset - shown
+    label = f"Showing {offset + 1}\u2013{offset + shown} of {total}" if offset else f"Showing {shown} of {total}"
+    return f"{label}. See all at {browse}", left
+
+
 SIGN_IN_NOTE = ("Locations marked \"visible after signing in\" are only shown to signed-in users: open the "
                 "event page and sign in with your Illinois Tech account to see them.")
 
@@ -240,14 +248,17 @@ def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
 
     if "events" in data:
         head = f"Here's what's on 312 {_span(data['window'])} (Central time, as of {asof}):"
+        if not data["events"] and data.get("offset"):
+            return "\n\n".join(["That's everything I found for that search. "
+                                 f"You can browse all events at {BROWSE['events']}"] + notes)
         if not data["events"]:
             body = "I didn't find any matching events. Try a different day or topic, or browse https://312.iit.edu/events"
             return "\n\n".join([head, body] + notes)
         body, shown = _fit(lambda e, n: _user_event(e, n), data["events"], head, max_chars, (120, 60, 0))
-        more = data["total_matches"] - shown
+        note, more = _range_note(shown, data, BROWSE["events"])
         if more > 0:
             env["truncated"] = True
-        tail = [f"Showing {shown} of {data['total_matches']}. See all at {BROWSE['events']}"] if more > 0 else []
+        tail = [note] if more > 0 or data.get("offset") else []
         if any(e.get("location_hidden") for e in data["events"][:shown]):
             tail.append(SIGN_IN_NOTE)
         return "\n\n".join([head, body] + tail + notes)
@@ -269,14 +280,17 @@ def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
         if data.get("no_exact_match"):
             head = (f"I couldn't find a club named '{data['no_exact_match']}'. "
                     f"These are the closest matches (as of {asof}):")
+        if not data["clubs"] and data.get("offset"):
+            return "\n\n".join(["That's every match I found. "
+                                 f"You can browse all clubs at {BROWSE['clubs']}"] + notes)
         if not data["clubs"]:
             msg = (f"I couldn't find a club named '{data['no_exact_match']}' on 312. Check the spelling, or browse "
                    if data.get("no_exact_match") else
                    "I didn't find any matching clubs. Try a broader interest word, or browse ")
             return "\n\n".join([msg + BROWSE["clubs"]] + notes)
         body, shown = _fit(lambda c, n: _user_club(c, n), data["clubs"], head, max_chars, (160, 80, 0))
-        more = data["total_matches"] - shown
-        tail = f"Showing {shown} of {data['total_matches']}. Browse all at {BROWSE['clubs']}" if more > 0 else ""
+        note, more = _range_note(shown, data, BROWSE["clubs"])
+        tail = note if more > 0 or data.get("offset") else ""
         if more > 0:
             env["truncated"] = True
         return "\n\n".join(x for x in [head, body, tail] + notes if x)

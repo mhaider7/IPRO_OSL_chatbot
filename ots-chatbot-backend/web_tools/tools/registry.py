@@ -80,9 +80,10 @@ class WebTools:
         if clubs is None:
             return error_envelope(err[0], err[1], clubs_mod.CLUBS_URL, fr)
         hits = clubs_mod.filter_clubs(clubs, args.query, args.category, args.type)
+        page = hits[args.offset: args.offset + args.limit]
         data = {
-            "total_matches": len(hits), "returned": min(len(hits), args.limit),
-            "clubs": [clubs_mod.club_summary(c) for c in hits[: args.limit]],
+            "total_matches": len(hits), "returned": len(page), "offset": args.offset,
+            "clubs": [clubs_mod.club_summary(c) for c in page],
         }
         if not hits:
             data["hint"] = "No clubs matched. Try a broader interest word, or drop the category/type filter."
@@ -144,10 +145,11 @@ class WebTools:
             q = f"{args.query} {word}" if args.query else word
             hits, mode = events_mod.search(evs, query=q, **kw)
             note = f"No events are labelled '{wanted_type}'; showing events that mention it instead." if hits else None
+        page = hits[args.offset: args.offset + args.limit]
         data = {
             "window": {"from": start.isoformat(), "to": end.isoformat(), "timezone": "America/Chicago"},
-            "total_matches": len(hits), "returned": min(len(hits), args.limit), "text_match": mode,
-            "events": [events_mod.event_summary(e, window_start=start) for e in hits[: args.limit]],
+            "total_matches": len(hits), "returned": len(page), "offset": args.offset, "text_match": mode,
+            "events": [events_mod.event_summary(e, window_start=start) for e in page],
         }
         if note:
             data["note"] = note

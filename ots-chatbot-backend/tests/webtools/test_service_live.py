@@ -194,3 +194,39 @@ def test_direct_mode_non_streaming_chat(no_model):
 def test_invalid_answer_mode_rejected():
     with pytest.raises(ValueError):
         WebToolsConfig(answer_mode="telepathy")
+
+
+# ---- multi-turn ---------------------------------------------------------------------------------
+def convo(*turns):
+    return ChatRequest(messages=[{"role": r, "text": t} for r, t in turns])
+
+
+def test_handbook_followup_retrieves_with_previous_question(llm, monkeypatch):
+    queries = []
+    monkeypatch.setattr(service_module, "retrieve", lambda c, q: queries.append(q) or [CHUNK])
+    svc = service()
+    list(svc.chat_stream(convo(("user", "How do I re-register my org?"), ("bot", "Submit the form each fall."),
+                               ("user", "what's the deadline for that?"))))
+    assert "re-register" in queries[0] and "deadline" in queries[0]
+    assert llm["question"] == "what's the deadline for that?"      # the model still sees the real question
+    queries.clear()
+    list(svc.chat_stream(convo(("user", "hi"), ("bot", "Hello!"), ("user", "How do I reserve a room?"))))
+    assert queries == ["How do I reserve a room?"]
+
+
+def test_live_followup_by_ordinal_runs_detail_lookup(llm):
+    svc = service(mode="direct")
+    first = "".join(e.get("token", "") for e in stream(svc, "What clubs are there for robotics?"))
+    assert first.count("- **") >= 1
+    req = convo(("user", "What clubs are there for robotics?"), ("bot", first), ("user", "tell me about the first one"))
+    events = [json.loads(line) for line in svc.chat_stream(req)]
+    assert [e["stage"] for e in events if "stage" in e] == ["searching_clubs"]    # live lookup, no handbook/model
+    assert "Robotics" in "".join(e.get("token", "") for e in events)
+
+
+def test_live_more_pages_with_offset(llm):
+    svc = service(mode="direct")
+    first = "".join(e.get("token", "") for e in stream(svc, "What clubs are there for robotics?"))
+    call = svc._live_call("more", [{"role": "user", "text": "What clubs are there for robotics?"},
+                                   {"role": "bot", "text": first}])
+    assert call.name == "search_clubs" and call.args["offset"] == first.count("\n- **") + first.startswith("- **")
