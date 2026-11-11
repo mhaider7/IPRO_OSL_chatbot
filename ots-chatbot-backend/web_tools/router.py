@@ -264,6 +264,24 @@ def _reference_call(text: str, history: list[dict], known: set[str] | None, toda
     return None
 
 
+def _apply_event_filters(args: dict, text: str, dates, tags: list[str], types: list[str], online: bool) -> bool:
+    """Write the date/tag/type/online filters a message supplies into search_events args; True if any."""
+    changed = False
+    if dates:
+        args["date_from"], args["date_to"] = dates[0].isoformat(), dates[1].isoformat()
+        args.pop("time_from", None)
+        changed = True
+    if re.search(r"\btonight\b", text, re.I):
+        args["time_from"] = "17:00"
+    if tags:
+        args["tags"], changed = tags, True
+    if types:
+        args["event_type"], changed = types[0], True
+    if online:
+        args["location_type"], changed = "online", True
+    return changed
+
+
 def _refine_call(text: str, history: list[dict], known: set[str] | None, today: date) -> ToolCall | None:
     """Follow-ups that change the last search: 'what about tomorrow?', 'and online?', 'how about music?'.
     Only tried after normal routing found nothing, so full questions are never hijacked."""
@@ -290,28 +308,24 @@ def _refine_call(text: str, history: list[dict], known: set[str] | None, today: 
 
     if prior.name == "search_events":
         args = {k: v for k, v in prior.args.items() if k != "offset"}
-        changed = False
-        if dates:
-            args["date_from"], args["date_to"] = dates[0].isoformat(), dates[1].isoformat()
-            args.pop("time_from", None)
-            changed = True
-        if re.search(r"\btonight\b", text, re.I):
-            args["time_from"] = "17:00"
-        if tags:
-            args["tags"], changed = tags, True
-        if types:
-            args["event_type"], changed = types[0], True
-        if online:
-            args["location_type"], changed = "online", True
+        changed = _apply_event_filters(args, text, dates, tags, types, online)
         from web_tools.tools.events import event_tokens
         leftover = _strip_filters(rest)
         if event_tokens(leftover):
             args["query"], changed = leftover.strip(" ?!."), True
         return ToolCall("search_events", args) if changed else None
-    if prior.name == "search_clubs" and opener:
+    if prior.name == "search_clubs":
         from web_tools.tools.clubs import tokens as club_tokens
         topic = _strip_filters(rest).strip(" ?!.")          # 'how about tomorrow?' is not a club topic
-        if club_tokens(topic):
+        if dates or tags or types or online:
+            # Clubs have no dates: "how about tomorrow?" after a club search means events on that topic.
+            args = {"limit": EVENT_LIMIT}
+            _apply_event_filters(args, text, dates, tags, types, online)
+            words = club_tokens(topic) or club_tokens(prior.args.get("query", ""))
+            if words:
+                args["query"] = " ".join(words)
+            return ToolCall("search_events", args, intent="location" if WHERE.search(text) else None)
+        if opener and club_tokens(topic):
             return ToolCall("search_clubs", {"query": topic, "limit": CLUB_LIMIT})
     return None
 

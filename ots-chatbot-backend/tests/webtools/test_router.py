@@ -231,7 +231,7 @@ def test_refine_looks_back_past_a_handbook_turn():
     hist = CLUB_HIST + [u("How do I start a club?"), b("1. Complete the registration form.")]
     call = fu("what about dance?", hist)
     assert call.name == "search_clubs" and call.args["query"] == "dance"
-    assert fu("how about tomorrow?", hist) is None          # club search has nothing to re-date
+    assert fu("how about tomorrow?", hist).name == "search_events"   # clubs have no dates: events on the topic
     assert fu("more", hist) is None                          # paging only applies to the immediately previous answer
 
 
@@ -240,3 +240,28 @@ def test_short_answer_to_a_bot_question_is_not_a_club_search():
     assert fu("for my club's trip", ask) is None
     assert fu("any clubs about hiking?", ask).name == "search_clubs"          # a real discovery cue still routes
     assert fu("for my club's trip", [u("hi"), b("Hello!")]).name == "search_clubs"   # unchanged without a question
+
+
+def test_date_after_club_search_means_events_on_that_topic():
+    call = fu("how about tomorrow?", CLUB_HIST)
+    assert call.name == "search_events"
+    assert call.args == {"limit": 6, "date_from": "2026-11-11", "date_to": "2026-11-11", "query": "robotic"}
+    assert fu("on Friday?", CLUB_HIST).args["date_from"] == "2026-11-13"
+    assert fu("what about this weekend?", CLUB_HIST).args["date_from"] == "2026-11-14"
+    assert fu("and online?", CLUB_HIST).args["location_type"] == "online"
+    assert fu("how about free food?", CLUB_HIST).args["tags"] == ["Free Food"]
+    assert fu("where is that tomorrow?", CLUB_HIST).intent == "location"
+
+
+def test_new_topic_with_a_date_uses_the_new_topic():
+    call = fu("how about music tomorrow?", CLUB_HIST)
+    assert call.name == "search_events" and call.args["query"] == "music" and call.args["date_from"] == "2026-11-11"
+
+
+def test_date_after_club_search_without_a_topic_leaves_query_out():
+    hist = [u("show me clubs"), b("- **Robotics** — x. [312 page](https://312.iit.edu/robotics/)")]
+    assert "query" not in fu("how about tomorrow?", hist).args
+
+
+def test_policy_cue_still_beats_date_after_clubs():
+    assert fu("what's the deadline for tomorrow?", CLUB_HIST) is None
