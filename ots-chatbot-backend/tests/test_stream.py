@@ -118,6 +118,26 @@ def test_stream_reports_searching_then_writing_when_model_loaded(fake_ollama):
     }
 
 
+@pytest.mark.parametrize("reply,expected", [
+    ("got it", "Glad that helps!"), ("thanks!", "You're welcome!"), ("no thanks", "No problem!"),
+])
+def test_acknowledgements_get_a_fixed_reply_without_search_or_model(fake_ollama, reply, expected):
+    log, _ = fake_ollama
+    service = service_module.RagService(load_config(), collection=None)
+    request = ChatRequest(messages=[
+        {"role": "user", "text": "Can we paint the MTCC windows?"},
+        {"role": "bot", "text": "Yes, with a space reservation. Would you like to know what designs get approved?"},
+        {"role": "user", "text": reply},
+    ])
+    events = [json.loads(line) for line in service.chat_stream(request)]
+    assert_one_kind_per_line(events)
+    assert stages(events) == []
+    assert "".join(e["token"] for e in events if "token" in e).startswith(expected)
+    assert events[-1]["sources"] == []
+    assert log == []                      # no search, no model call
+    assert service.chat(request).reply.startswith(expected)   # the non-streaming endpoint behaves the same
+
+
 def test_stream_loads_the_model_between_loading_and_writing(fake_ollama):
     log, state = fake_ollama
     state["loaded"] = False

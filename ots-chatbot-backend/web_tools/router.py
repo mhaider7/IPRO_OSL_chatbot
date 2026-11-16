@@ -27,6 +27,57 @@ HANDBOOK_SELF = re.compile(
 DISCOVERY = re.compile(
     r"\b(find|any|recommend\w*|suggest\w*|looking for|interested in|into|what|which|list|show|"
     r"are there|is there|do you have|have any|join|sign up|clubs? (?:for|about|on)|clubs? that)\b", re.I)
+# Club searches need a real discovery cue. Plain "what" only counts right before a plural group noun
+# ("what clubs", "what student organizations"): "what are the steps for club travel?" is a policy question.
+CLUB_DISCOVERY = re.compile(
+    r"\b(find|any|recommend\w*|suggest\w*|looking for|interested in|list|show|"
+    r"are there|is there|do you have|have any|join|sign up|clubs? (?:for|about|on)|clubs? that)\b"
+    r"|\b(?:what|which)\W+(?:\w+\W+){0,2}?(?:clubs|orgs|organi[sz]ations|groups|teams|societies|fraternities|sororities)\b",
+    re.I)
+# Question openers that make a short club message a question about something else ("what is a club advisor?",
+# "where can our club store things?") rather than a search. "is/are" stay out: "is the chess club still active?"
+QUESTION_START = re.compile(r"^\W*(what|how|why|when|where|who|can|could|do|does|should|will|would|may)\b", re.I)
+
+# ---- "How do things work here?" questions belong to the handbook ------------------------------------------
+# Policy questions often mention an event or a club ("can we serve alcohol at our event?"), which the lookup
+# patterns below would otherwise grab. Checked before any lookup pattern.
+# STRONG: the shape of a rules/cost/process question; always the handbook.
+POLICY_STRONG = re.compile(
+    r"\bhow\s+(?:much|long|far|often|soon|early)\b"
+    r"|\bhow\s+many\b(?!\s+(?:events|clubs|organi[sz]ations|groups)\s+(?:are|is)\s+(?:there|happening|going\s+on))"
+    r"|\bwhat\s+(?:fees|charges|costs?|counts|happens|qualifies)\b"
+    r"|\bwhat(?:'s|\s+is|\s+are)\s+the\s+(?:limits?|rules?|polic(?:y|ies)|process|procedure|steps|deadlines?|"
+    r"requirements?|costs?|fees?|prices?|max(?:imum)?|min(?:imum)?)\b"
+    r"|\bwho\s+(?:pays|is\s+responsible|approves|signs|covers)\b"
+    r"|\b(?:allowed|permitted|required|prohibited|banned)\b"
+    r"|\bis\s+it\s+(?:ok(?:ay)?|possible|legal|fine)\b"
+    r"|\b(?:fees?|costs?|prices?|limits?)\b",
+    re.I)
+# "Things to do" questions are event lookups even when phrased "what can I do ...".
+THINGS_TO_DO = re.compile(r"\bwhat\s+(?:can|should|could)\s+(?:i|we)\s+do\b", re.I)
+# SOFT: about the student's own club/event, or "can we / how do I ..."; the handbook unless the message
+# clearly asks for a list of events (LISTING). Verbs like join/find/contact stay lookups ("how do I join ...").
+_LOOKUP_VERBS = r"(?:join|find|see|sign\s+up|get\s+involved|contact|meet|attend|look)"
+POLICY_SOFT = re.compile(
+    r"\b(?:our|my)\s+(?:\w+\s+){0,2}?(?:club|org|organi[sz]ation|event|team|fraternity|sorority|group|chapter|society)(?:'?s)?\b"
+    r"|^\W*(?:our|my)\b(?!.*\b(?:join|find)\b)"
+    r"|^\W*(?:can|could|may|should|must|do|does|did|will|would|are|is)\s+(?:we|i|our|my|students?|non-?students|"
+    r"minors|guests|members|officers|treasurers?|presidents?|advisors?)\b(?!\s+" + _LOOKUP_VERBS + r")"
+    # "can I / should we ..." anywhere: "what foods can I serve at an event?"
+    r"|\b(?:can|could|may|should|must)\s+(?:i|we)\b(?!\s+" + _LOOKUP_VERBS + r")"
+    r"|\bhow\s+(?:do|can|should|would|could|does)\s+(?:i|we|our|my)\b(?!\s+" + _LOOKUP_VERBS + r")"
+    r"|\bwhat\s+(?:do|does|should|must)\s+(?:i|we|our|my)\b"
+    r"|\bwhere\s+(?:can|do|should|would)\s+(?:i|we|our|my)\b(?!\s+(?:find|see|join|look))",
+    re.I)
+LISTING = re.compile(
+    r"\b(?:what|which|any|upcoming|show|list|find|see)\b[^?.!]{0,25}\bevents\b"
+    r"|\bevents\s+(?:this|next|today|tonight|tomorrow|coming)\b|\bcoming up\b|\bupcoming\b", re.I)
+
+
+def is_policy_question(text: str) -> bool:
+    """True when the message asks how something works (rules, costs, process) rather than for a lookup."""
+    listing = LISTING.search(text) or THINGS_TO_DO.search(text)
+    return bool(POLICY_STRONG.search(text) or (POLICY_SOFT.search(text) and not listing))
 DETAILS = re.compile(
     r"(?:tell me (?:more )?about|info(?:rmation)? (?:on|about)|details (?:on|about|for)|more about|"
     r"what(?:'s| is| does)|who (?:runs|leads)|contact (?:info )?(?:for|of)|how (?:do|can) i (?:join|contact))\s+"
@@ -154,7 +205,10 @@ def _event_call(text: str, today: date) -> ToolCall | None:
         or (tags and (asks or dates))
         or (kinds and (dates or TIME_CUE.search(text) or asks or short))
         or (types and dates and short)
-        or re.search(r"\b(anything|something|what)\b.{0,20}\b(to do|going on|happening|on)\b", text, re.I)
+        # "what's on" only right after "what": "what's the limit on ..." is not an events question
+        or re.search(r"\b(anything|something|what)\b.{0,20}\b(to do|going on|happening)\b|\bwhat(?:'s|\s+is)\s+on\b",
+                     text, re.I)
+        or THINGS_TO_DO.search(text)
     )
     if not wants_events or CLUB_ONLY.search(text) and not EVENT_NOUN.search(text):
         return None
@@ -344,6 +398,8 @@ def route(message: str, known_club_names: set[str] | None = None, today: date | 
     if m:
         return ToolCall("get_event_details", {"event_id_or_url": m.group(1)},
                         intent="location" if WHERE.search(text) else None)
+    if is_policy_question(text):
+        return None
     if history:
         call = _reference_call(text, history, known_club_names, today)
         if call:
@@ -360,7 +416,10 @@ def route(message: str, known_club_names: set[str] | None = None, today: date | 
     if m:
         name = TRAILING_NOUN.sub("", m.group("name").strip(" '\""))
         generic = {"club", "clubs", "the", "it", "that", "this", "iit", "illinois tech"}
-        if name and name.lower() not in generic:
+        # A name, not a clause: "what does my club need to do ..." must not look up a club called "my club need ..."
+        looks_like_name = (len(name.split()) <= 6
+                           and not re.match(r"(?:my|our|your|a|an)\b", name, re.I))
+        if name and name.lower() not in generic and looks_like_name:
             known = bool(known_club_names and name.lower() in known_club_names)
             if known or CLUB_NOUN.search(text):
                 return ToolCall("get_club_details", {"slug": name},
@@ -368,6 +427,8 @@ def route(message: str, known_club_names: set[str] | None = None, today: date | 
 
     # A short reply to a question the bot just asked ("for my club's trip") is an answer, not a club search.
     answering = bool(history) and history[-1]["role"] == "bot" and history[-1]["text"].rstrip().endswith("?")
-    if CLUB_NOUN.search(text) and (DISCOVERY.search(text) or (len(text.split()) <= 10 and not answering)):
+    # Short messages without a question word ("art clubs", "clubs for international students") are searches.
+    short_search = len(text.split()) <= 10 and not answering and not QUESTION_START.match(text)
+    if CLUB_NOUN.search(text) and (CLUB_DISCOVERY.search(text) or short_search):
         return ToolCall("search_clubs", {"query": text, "limit": CLUB_LIMIT})
     return None
