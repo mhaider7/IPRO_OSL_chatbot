@@ -32,6 +32,31 @@ KEEP_ALIVE = _keep_alive(os.getenv("HAWK_OLLAMA_KEEP_ALIVE", "60m"))
 _client = httpx.Client(timeout=120)
 _warming = threading.Lock()
 
+# --- "thinking" models -----------------------------------------------------------------------------
+# Some models (qwen3.5, gemma4) can "think": write hidden reasoning before the answer. That makes answers
+# much slower, and with only a few tokens allowed (the off-topic check's one word) the reply comes back
+# empty. So those models get "think": false. Other models (llama3.2) get no "think" field at all, exactly
+# as before: an older Ollama may reject it for a model that can't think. Whether a model can think is
+# asked once per model (Ollama's /api/show lists "thinking" under capabilities) and remembered.
+_thinking: dict[str, bool] = {}
+
+
+def thinks(model: str) -> bool:
+    """Whether Ollama says this model can think. If Ollama can't be asked, False (and asked again next time)."""
+    if model not in _thinking:
+        try:
+            response = _client.post(f"{OLLAMA_BASE}/api/show", json={"model": model}, timeout=5)
+            response.raise_for_status()
+            _thinking[model] = "thinking" in (response.json().get("capabilities") or [])
+        except (httpx.HTTPError, ValueError):
+            return False
+    return _thinking[model]
+
+
+def think_fields(model: str) -> dict:
+    """Extra request fields: {"think": False} for thinking models, nothing for the others."""
+    return {"think": False} if thinks(model) else {}
+
 ROLE_MAP = {"user": "user", "bot": "assistant"}
 
 
@@ -166,6 +191,7 @@ def generate_answer(
             "stream": False,
             "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
+            **think_fields(model),
         })
         response.raise_for_status()
         return response.json()["message"]["content"].strip()
@@ -192,6 +218,7 @@ def stream_answer(
             "stream": True,
             "options": GENERATE_OPTIONS,
             "keep_alive": KEEP_ALIVE,
+            **think_fields(model),
         }) as response:
             response.raise_for_status()
             for line in response.iter_lines():

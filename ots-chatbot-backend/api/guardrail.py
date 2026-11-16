@@ -130,6 +130,7 @@ def classify_with_model(text: str, model: str) -> str:
         "model": model, "stream": False, "options": CLASSIFY_OPTIONS, "keep_alive": ollama_client.KEEP_ALIVE,
         "messages": [{"role": "system", "content": CLASSIFY_PROMPT},
                      {"role": "user", "content": f"Message: <<<{text}>>>"}],
+        **ollama_client.think_fields(model),   # a thinking model would spend the 4 tokens thinking -> empty reply
     })
     response.raise_for_status()
     m = re.match(r"(ON|OFF|MIXED)\b", response.json()["message"]["content"].strip().upper())

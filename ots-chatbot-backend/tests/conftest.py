@@ -21,3 +21,10 @@ chroma_setup.DB_PATH = Path(tempfile.gettempdir()) / "hawk-test-chroma"
 import api.service  # noqa: E402
 
 api.service.warm_up_in_background = lambda model: None
+
+# Don't ask a real Ollama whether a model can "think" (llm.ollama_client.thinks): tests treat every model
+# as a non-thinking one unless they say otherwise (tests/test_thinking.py fills the cache itself).
+from llm import ollama_client  # noqa: E402
+
+ollama_client.thinks_from_ollama = ollama_client.thinks   # the real one, for tests/test_thinking.py
+ollama_client.thinks = lambda model: ollama_client._thinking.get(model, False)
