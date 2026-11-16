@@ -5,7 +5,7 @@ from typing import Generator
 
 import chromadb
 
-from api.conversation import retrieval_query
+from api.conversation import FIXED_REPLIES, retrieval_query, short_reply
 from api.schemas import ChatRequest, ChatResponse, Conversation, EscalationResponse
 from config.loader import Config
 from escalation.email_builder import build_email_draft
@@ -71,6 +71,11 @@ class RagService:
             return None, []
 
     @staticmethod
+    def _fixed_reply(latest: str, history: list[dict]) -> str | None:
+        """A fixed reply for plain acknowledgements, thanks and "no thanks" (see api.conversation.short_reply)."""
+        return FIXED_REPLIES.get(short_reply(latest, history) or "")
+
+    @staticmethod
     def _parse(request: ChatRequest) -> tuple[str, list[dict]]:
         users = [m.text for m in request.messages if m.role == "user"]
         history = [{"role": m.role, "text": m.text} for m in request.messages[:-1]]
@@ -92,6 +97,9 @@ class RagService:
         # "[No matching OSL material was found.]".
         latest, history = self._parse(request)
         call = self._live_call(latest, history)
+        fixed = None if call else self._fixed_reply(latest, history)
+        if fixed:
+            return ChatResponse(reply=fixed, sources=[])
         live, live_sources = self._run_live(call) if call else (None, [])
         if call and live and self._direct():
             return ChatResponse(reply=live, sources=live_sources)
@@ -129,6 +137,14 @@ class RagService:
         latest, history = self._parse(request)
         call = self._live_call(latest, history)
         live, live_sources = None, []
+        fixed = None if call else self._fixed_reply(latest, history)
+        if fixed:   # "got it" / "thanks" / "no thanks": nothing to look up, nothing for the model to invent
+            yield json.dumps({"token": fixed}) + "\n"
+            yield json.dumps({
+                "done": True, "escalate": False, "escalation_reason": None,
+                "offer_options": True, "sources": [],
+            }) + "\n"
+            return
         if call:
             yield json.dumps({"stage": call.stage}) + "\n"
             live, live_sources = self._run_live(call)
