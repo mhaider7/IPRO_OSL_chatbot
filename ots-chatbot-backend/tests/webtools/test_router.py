@@ -48,6 +48,58 @@ def test_policy_and_unrelated_questions_do_not_route(msg):
     assert route(msg) is None
 
 
+# Policy questions that mention an event or a club. Before the policy check, almost all of these were sent to
+# 312 (the word "event" alone was enough) and the student got an events or club list instead of an answer.
+@pytest.mark.parametrize("msg", [
+    # found in the 2026-11-15 measurement
+    "What does my club need to do to stay in good standing?", "What's the limit on expense claims?",
+    "Can my club sell food at an event?", "What fees get added to a big event?",
+    "Do we need public safety for our event with 80 people?", "How much are linens for an event?",
+    "What counts as a large event?", "What are the steps for club travel?",
+    "Can I sign a contract with a DJ for our event?", "How do we book a performer for an event?",
+    "Where can our club store equipment?", "Can we bring high schoolers to our club event?",
+    "Can we serve alcohol at our event?",
+    "Our robotics club wants to build something with power tools, what do we need?",
+    # held-out set, written before the fix
+    "Do we have to pay for security at our event?", "Can our event have a DJ?",
+    "How many guests can come to our fraternity event?", "Is there a fee to use the MTCC ballroom for an event?",
+    "Our club wants to host a movie night, what do we need to do?", "Can non-students attend our club's events?",
+    "What do I need to do to bring a speaker to campus for an event?", "Can we have a bonfire at our event?",
+    "Is food allowed at events in the auditorium?", "Can my club give away prizes at an event?",
+    "Who pays for the janitor at our event?", "Does our event need a waiver?",
+    "How many events does a club have to hold each semester?", "Can my club store food in the storage room?",
+    "What does our club treasurer do?", "Can our club use Discord?",
+    "What happens if our club doesn't hold any events this semester?",
+    "Can our org paint the MTCC windows for our event?", "Can we sell tickets for our club event?",
+    "Is there a limit on how much our club can spend on an event?", "What's the rule on minors at club events?",
+    "Are clubs allowed to charge dues?", "What is a club advisor?",
+    # reported by the user 2026-11-15 ("can I" in the middle of the question)
+    "What foods can I serve at an event?", "Which rooms can we use for an event?",
+])
+def test_policy_questions_mentioning_events_or_clubs_do_not_route(msg):
+    assert route(msg) is None, msg
+
+
+# Lookups phrased like policy questions ("can I", "what should I", "my friend ...") must still reach 312.
+@pytest.mark.parametrize("msg,tool", [
+    ("Can you show me events this weekend?", "search_events"), ("What should I do this weekend?", "search_events"),
+    ("What can I do on campus this Friday?", "search_events"), ("Any events where I do not have to pay?", "search_events"),
+    ("Are there any events I can go to tonight?", "search_events"), ("Where can I find events this week?", "search_events"),
+    ("What events can I go to this week?", "search_events"), ("Does SWE have any events this week?", "search_events"),
+    ("What events are there this Thursday?", "search_events"), ("Any cultural events coming up?", "search_events"),
+    ("Is anything happening on campus this weekend?", "search_events"), ("Show me upcoming workshops", "search_events"),
+    ("When is the next hackathon?", "search_events"), ("What's on this week?", "search_events"),
+    ("Do you have any clubs for chess?", "search_clubs"), ("What clubs should I join?", "search_clubs"),
+    ("Can I join the chess club?", "search_clubs"), ("I need to find a club for dance", "search_clubs"),
+    ("My friend wants to join a dance club, any ideas?", "search_clubs"), ("Is the chess club still active?", "search_clubs"),
+    ("Is there a robotics team?", "search_clubs"), ("What student orgs are there for music?", "search_clubs"),
+    ("How do I join the Robotics Club?", "get_club_details"), ("Who leads the Robotics Club?", "get_club_details"),
+])
+def test_lookups_phrased_like_questions_still_route(msg, tool):
+    call = route(msg)
+    assert call is not None and call.name == tool, f"{msg!r}: {call.name if call else None}"
+
+
 def test_overlong_messages_ignored():
     assert route("clubs " * 200) is None
 
@@ -239,7 +291,8 @@ def test_short_answer_to_a_bot_question_is_not_a_club_search():
     ask = [u("How do I get money?"), b("Would you like to know about fundraising or Finance Board?")]
     assert fu("for my club's trip", ask) is None
     assert fu("any clubs about hiking?", ask).name == "search_clubs"          # a real discovery cue still routes
-    assert fu("for my club's trip", [u("hi"), b("Hello!")]).name == "search_clubs"   # unchanged without a question
+    # "my club's ..." is about the student's own club (a handbook question), with or without a bot question
+    assert fu("for my club's trip", [u("hi"), b("Hello!")]) is None
 
 
 def test_date_after_club_search_means_events_on_that_topic():
