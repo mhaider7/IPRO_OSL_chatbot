@@ -1,6 +1,9 @@
 name: "Office of Student Life"
 short_name: "OSL"
-email: "osl@illinoistech.edu"
+email: "osl@illinoistech.edu"   # used only by the escalation email draft (not in use)
+# OSL contact details Hawk gives to students (from the OSL website).
+contact_email: "welcomedesk@illinoistech.edu"
+contact_phone: "312.567.3720"
 docs_path: "config/docs"
 model: "llama3.2"
 system_prompt: |

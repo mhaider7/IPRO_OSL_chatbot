@@ -31,6 +31,10 @@ class Config:
     model: str
     system_prompt: str
     web_tools: dict = field(default_factory=dict)   # optional overrides for web_tools.config
+    # OSL contact details Hawk gives students (e.g. in the off-topic refusal). Separate from `email`, which
+    # only the escalation draft uses.
+    contact_email: str = ""
+    contact_phone: str = ""
 
 
 @dataclass
@@ -66,6 +70,8 @@ def load_config() -> Config:
         model=raw["model"],
         system_prompt=raw["system_prompt"].strip(),
         web_tools=raw.get("web_tools") or {},
+        contact_email=raw.get("contact_email") or "",
+        contact_phone=raw.get("contact_phone") or "",
     )
 
 

@@ -1,4 +1,10 @@
-"""RagService: retrieval + Ollama generation. No hardcoded topic routing."""
+"""RagService: retrieval + Ollama generation.
+
+Order for each message: distress check (api.distress; the support reply is a fixed text, and it runs before
+everything else so a crisis message is never routed to 312, given a fixed short reply, or refused) -> 312 router
+decision (rules only, nothing fetched yet) -> fixed replies for "thanks" / "got it" (api.conversation) ->
+off-topic check (api.guardrail; a refusal is a fixed text) -> 312 lookup or handbook search -> the answer model.
+"""
 import json
 import logging
 from typing import Generator
@@ -6,6 +12,8 @@ from typing import Generator
 import chromadb
 
 from api.conversation import FIXED_REPLIES, retrieval_query, short_reply
+from api.distress import DistressCheck
+from api.guardrail import Guardrail, Verdict, refusal_text
 from api.schemas import ChatRequest, ChatResponse, Conversation, EscalationResponse
 from config.loader import Config
 from escalation.email_builder import build_email_draft
@@ -13,7 +21,7 @@ from llm.ollama_client import (
     citation_sources, generate_answer, load_model, model_loaded,
     stream_answer, warm_up_in_background,
 )
-from retrieval.chroma_setup import retrieve
+from retrieval.chroma_setup import EMBEDDING_FUNCTION, retrieve
 from web_tools.render import render_for_prompt, render_for_user
 from web_tools.router import ToolCall, route as route_live_lookup
 from web_tools.tools.registry import WebTools, get_default_tools
@@ -23,10 +31,40 @@ logger = logging.getLogger("hawk")
 
 class RagService:
     def __init__(self, config: Config, collection: chromadb.api.models.Collection.Collection,
-                 web_tools: WebTools | None = None):
+                 web_tools: WebTools | None = None, guardrail: Guardrail | None = None,
+                 distress: DistressCheck | None = None):
         self.config = config
         self.collection = collection
         self._web_tools = web_tools
+        # The off-topic check needs the handbook index; without one (only in tests) there is no check.
+        if guardrail is None and collection is not None:
+            guardrail = Guardrail.for_collection(collection, EMBEDDING_FUNCTION, config.model)
+        self._guardrail = guardrail
+        # The distress check always runs. Without a handbook index (only in tests) it has its patterns only.
+        if distress is None:
+            distress = DistressCheck(
+                EMBEDDING_FUNCTION if collection is not None else None,
+                (lambda text: guardrail.scores(text)["margin"]) if guardrail is not None else None,
+            )
+        self._distress = distress
+
+    # --- distress check (api/distress.py) ---------------------------------------------------------
+    def _support_reply(self, latest: str, history: list[dict]) -> str | None:
+        verdict = self._distress.check(latest, history)
+        if verdict.reply:
+            logger.info("distress check: fixed reply (%s)", verdict.reason)   # never the message itself
+        return verdict.reply
+
+    # --- off-topic check (api/guardrail.py) ------------------------------------------------------
+    def _verdict(self, latest: str, history: list[dict], call: ToolCall | None) -> Verdict:
+        if self._guardrail is None:
+            return Verdict("allow", "no-check")
+        verdict = self._guardrail.check(latest, history, call)
+        logger.info("off-topic check: %s (%s)", verdict.decision, verdict.reason)
+        return verdict
+
+    def _refusal(self) -> str:
+        return refusal_text(self.config.contact_email, self.config.contact_phone)
 
     # --- live 312.iit.edu lookups (clubs; events soon) -------------------------------------
     def _tools(self) -> WebTools | None:
@@ -96,10 +134,15 @@ class RagService:
         # can use the system prompt (Persona Exception). Context then shows
         # "[No matching OSL material was found.]".
         latest, history = self._parse(request)
+        support = self._support_reply(latest, history)
+        if support:   # before the router, the fixed replies and the off-topic check
+            return ChatResponse(reply=support, sources=[])
         call = self._live_call(latest, history)
         fixed = None if call else self._fixed_reply(latest, history)
         if fixed:
             return ChatResponse(reply=fixed, sources=[])
+        if self._verdict(latest, history, call).decision == "refuse":   # before any lookup, search or model
+            return ChatResponse(reply=self._refusal(), sources=[])
         live, live_sources = self._run_live(call) if call else (None, [])
         if call and live and self._direct():
             return ChatResponse(reply=live, sources=live_sources)
@@ -135,10 +178,14 @@ class RagService:
         inlined into the reply text.
         """
         latest, history = self._parse(request)
-        call = self._live_call(latest, history)
+        fixed = self._support_reply(latest, history)   # distress: fixed text, before everything else
+        call = None if fixed else self._live_call(latest, history)
         live, live_sources = None, []
-        fixed = None if call else self._fixed_reply(latest, history)
-        if fixed:   # "got it" / "thanks" / "no thanks": nothing to look up, nothing for the model to invent
+        if not fixed and not call:
+            fixed = self._fixed_reply(latest, history)
+        if not fixed and self._verdict(latest, history, call).decision == "refuse":
+            fixed = self._refusal()   # off-topic: fixed text, no lookup, no search, no model, no sources
+        if fixed:   # support reply / "got it" / "thanks" / "no thanks" / refusal: nothing for the model to invent
             yield json.dumps({"token": fixed}) + "\n"
             yield json.dumps({
                 "done": True, "escalate": False, "escalation_reason": None,
