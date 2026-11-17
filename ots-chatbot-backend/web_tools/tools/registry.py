@@ -80,6 +80,12 @@ class WebTools:
         if clubs is None:
             return error_envelope(err[0], err[1], clubs_mod.CLUBS_URL, fr)
         hits = clubs_mod.filter_clubs(clubs, args.query, args.category, args.type)
+        if args.query and not args.category and not args.type:
+            # "ML clubs", "hawkapela": the word search can't read abbreviations or typos; put those matches first
+            # (a typo only when the word search found nothing).
+            match = clubs_mod.candidates(clubs, args.query)
+            if match.kind in ("exact", "name", "initials") or (match.kind in ("typo", "sound") and not hits):
+                hits = match.clubs + [c for c in hits if c not in match.clubs]
         page = hits[args.offset: args.offset + args.limit]
         data = {
             "total_matches": len(hits), "returned": len(page), "offset": args.offset,
@@ -96,12 +102,20 @@ class WebTools:
         clubs, fr, err = self._load_clubs()
         if clubs is None:
             return error_envelope(err[0], err[1], clubs_mod.CLUBS_URL, fr)
-        club = clubs_mod.find_club(clubs, args.slug)
-        if club is None:
+        match = clubs_mod.candidates(clubs, args.slug)
+        asked = clubs_mod.display_ident(match.asked or args.slug, match.kind)
+        if len(match.clubs) > 1:   # several real clubs fit ("ISA"): ask which one, never pick for the student
+            options = [clubs_mod.club_summary(c, 150, 0) for c in match.clubs]
+            return envelope(ok=False, data={"candidates": options, "asked_for": asked}, source_url=clubs_mod.CLUBS_URL,
+                            fetch=fr, error=("ambiguous", f"'{args.slug}' matches {len(options)} clubs on 312."))
+        if not match.clubs:
             near = [clubs_mod.club_summary(c, 150, 0) for c in clubs_mod.close_matches(clubs, args.slug)]
             return envelope(ok=False, data={"close_matches": near}, source_url=clubs_mod.CLUBS_URL, fetch=fr,
                             error=("no_results", f"No club with slug, id or name '{args.slug}'."))
+        club = match.clubs[0]
         detail = clubs_mod.club_summary(club, mission_n=1500, benefits_n=1000)
+        if match.kind in ("initials", "typo", "sound"):   # say which club "ML" / "hawkapela" was taken to mean
+            detail.update(matched_by="typo" if match.kind == "sound" else match.kind, asked_for=asked)
         detail["website_url"] = club.website_url
         detail["type_line"] = club.type_line
         detail["upcoming_events"] = self._club_events(club.slug)
