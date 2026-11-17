@@ -59,19 +59,30 @@ class _Section:
         return len(self.titles) - 1
 
 
+def fill_contacts(prompt: str, contact_email: str, contact_phone: str) -> str:
+    """Put the configured OSL contact into the prompt's {contact_email} / {contact_phone} placeholders.
+
+    Plain replacement (not str.format), so other braces in the prompt stay as they are. The off-topic refusal
+    reads the same settings, so the prompt and the refusal can't give different contacts.
+    """
+    return prompt.replace("{contact_email}", contact_email).replace("{contact_phone}", contact_phone)
+
+
 def load_config() -> Config:
     path = BASE / "config.yaml"
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    contact_email = raw.get("contact_email") or ""
+    contact_phone = raw.get("contact_phone") or ""
     return Config(
         name=raw["name"],
         short_name=raw["short_name"],
         email=raw["email"],
         docs_path=(BASE.parent / raw["docs_path"]).resolve(),
         model=raw["model"],
-        system_prompt=raw["system_prompt"].strip(),
+        system_prompt=fill_contacts(raw["system_prompt"].strip(), contact_email, contact_phone),
         web_tools=raw.get("web_tools") or {},
-        contact_email=raw.get("contact_email") or "",
-        contact_phone=raw.get("contact_phone") or "",
+        contact_email=contact_email,
+        contact_phone=contact_phone,
     )
 
 
