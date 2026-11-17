@@ -154,6 +154,17 @@ def test_after_a_support_reply_more_distress_gets_the_support_reply_again():
     assert check.check("I want to die.", bot(FOLLOWUP_TEXT)).reply == SUPPORT_TEXT
 
 
+@pytest.mark.parametrize("last", [SUPPORT_TEXT, FOLLOWUP_TEXT])
+def test_the_after_support_flag_is_set_after_both_texts_and_not_for_distress_again(last):
+    # R Part 3: the service lets the search picker decide when this flag is set (review 2, B6). The flag is left
+    # out of DistressVerdict's equality, so the tests above don't see it: checked here.
+    for margin in (0.05, -0.30):
+        check = DistressCheck(on_margin=lambda t, m=margin: m)
+        assert check.check("How do I reserve a room?", bot(last)).after_support is True
+    assert DistressCheck(on_margin=lambda t: 0.05).check("I want to die.", bot(last)).after_support is False
+    assert DistressCheck(on_margin=lambda t: 0.05).check("How do I reserve a room?", []).after_support is False
+
+
 def test_only_the_last_reply_counts_as_the_support_state():
     turns = bot(SUPPORT_TEXT) + bot("Here is how to reserve a room.")
     assert patterns_only.check("ok", turns).reply is None

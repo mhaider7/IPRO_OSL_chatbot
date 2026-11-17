@@ -82,3 +82,21 @@ def test_text_without_headings_falls_back_to_paragraphs():
     chunks = loader._md_chunks("notes.txt", text)
     assert len(chunks) == 2
     assert chunks[0].path == "notes.txt"
+
+
+# ---- search picker settings: config.yaml + per-laptop environment overrides (R, 2026-11-17) ------------------
+from config.loader import search_picker_settings  # noqa: E402
+
+
+def test_search_picker_settings_come_from_the_config_by_default():
+    assert search_picker_settings({"enabled": True, "timeout_s": 5}, env={}) == {"enabled": True, "timeout_s": 5}
+
+
+def test_a_cpu_laptop_can_switch_the_picker_off_or_wait_longer_without_editing_the_config():
+    base = {"enabled": True, "timeout_s": 5}
+    assert search_picker_settings(base, env={"HAWK_SEARCH_PICKER": "off"})["enabled"] is False
+    assert search_picker_settings({"enabled": False}, env={"HAWK_SEARCH_PICKER": "on"})["enabled"] is True
+    assert search_picker_settings(base, env={"HAWK_PICKER_TIMEOUT_S": "60"})["timeout_s"] == 60.0
+    for bad in ("", "soon", "-3", "0"):
+        assert search_picker_settings(base, env={"HAWK_PICKER_TIMEOUT_S": bad})["timeout_s"] == 5, bad
+    assert base == {"enabled": True, "timeout_s": 5}   # the config's own dict is not changed

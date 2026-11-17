@@ -133,7 +133,9 @@ def no_model(monkeypatch):
         raise AssertionError("the model must not be called in direct mode")
     monkeypatch.setattr(service_module, "stream_answer", boom)
     monkeypatch.setattr(service_module, "generate_answer", boom)
-    monkeypatch.setattr(service_module, "model_loaded", boom)
+    # Asking whether the model is loaded is allowed since R (2026-11-17): the search picker, a model call that
+    # picks the search, runs before every lookup. No *answer* is written by a model in direct mode.
+    monkeypatch.setattr(service_module, "model_loaded", lambda m: True)
     monkeypatch.setattr(service_module, "retrieve", boom)   # and no handbook search either
 
 

@@ -128,11 +128,23 @@ def test_a_follow_up_close_to_an_off_topic_example_is_not_a_follow_up():
     assert gr.check("Just a simple frosting recipe.", history(ANSWER)).decision == "refuse"
 
 
-def test_model_off_but_the_router_found_a_club_search_shows_the_club_list():
+def test_a_312_lookup_chosen_for_the_message_turns_a_refusal_into_the_312_list():
+    # Changed for R (user's decision, 2026-11-17): any 312 lookup chosen for the message (clubs OR events, by the
+    # search picker or the regex router) turns a refusal into "allow", because the student then sees only 312's
+    # own list. Before, only a club search did, and only after the model said OFF ("baking?" / "Soccer?" after a
+    # club search were refused, quality-5). An events list for "brownie recipe for an OSL event" leaks no recipe.
     gr, _ = guard(UNSURE_NO_MATERIAL, model_word="OFF")
     clubs, events = SimpleNamespace(name="search_clubs"), SimpleNamespace(name="search_events")
-    assert gr.check("Is there a baking club?", [], clubs).reason == "club-search"
-    assert gr.check("brownie recipe for an OSL event", [], events).decision == "refuse"
+    assert gr.check("Is there a baking club?", [], clubs).reason == "312-lookup"
+    assert gr.check("brownie recipe for an OSL event", [], events).reason == "312-lookup"
+    assert gr.check("brownie recipe for an OSL event", []).decision == "refuse"   # no lookup: still refused
+
+
+def test_a_312_lookup_also_gets_past_the_after_refusal_rule():
+    gr, _ = guard(SHORT_REACTION, model_word="ON")
+    clubs = SimpleNamespace(name="search_clubs")
+    assert gr.check("Soccer?", history(REFUSAL), clubs).reason == "312-lookup"
+    assert gr.check("Soccer?", history(REFUSAL)).reason == "after-refusal"
 
 
 # ── After a refusal ─────────────────────────────────────────────

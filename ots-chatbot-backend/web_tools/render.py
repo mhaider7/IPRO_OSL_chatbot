@@ -86,6 +86,12 @@ def render_for_prompt(env: dict, max_chars: int = MAX_CHARS) -> str:
         head += " NOTE: some content needs an Illinois Tech sign-in."
     if not env["ok"]:
         err = env.get("error") or {}
+        options = (env.get("data") or {}).get("candidates")
+        if err.get("code") == "ambiguous" and options:
+            asked = env["data"].get("asked_for", "")
+            lines = "\n".join(_club_line(c, 0) for c in options)
+            return (f"{head}\n'{asked}' matches several clubs on 312. List these and ask which one the student means; "
+                    f"don't pick one:\n{lines}")
         body = f"Lookup failed ({err.get('code')}). Tell the student the live lookup is unavailable and point them to https://312.iit.edu."
         return f"{head}\n{body}"
 
@@ -135,6 +141,9 @@ def render_for_prompt(env: dict, max_chars: int = MAX_CHARS) -> str:
     else:  # single club detail
         d = data
         body = _club_line(d, 1500)
+        if d.get("matched_by"):
+            head += (f"\nThe student wrote '{d['asked_for']}'; this is the club on 312 that matches it "
+                     f"({'by its initials' if d['matched_by'] == 'initials' else 'closest spelling'}). Say which club this is.")
         if d.get("membership_benefits"):
             body += f"\n  Membership benefits: {d['membership_benefits']}"
         if d.get("website_url") and d["website_url"] != d.get("page_url"):
@@ -223,6 +232,17 @@ def _location_answer(d: dict) -> str:
     return f"No location is listed for **{t}**. See the event page: {d['url']}"
 
 
+SEARCHED_MAX_CHARS = 40   # quote short search texts ("AI", "Free Food"); a whole sentence reads badly
+
+
+def _matching(kind: str, env: dict) -> str:
+    """'events matching "AI"' when the lookup says what it searched for, else 'matching events'."""
+    searched = (env.get("searched") or "").strip()
+    if searched and len(searched) <= SEARCHED_MAX_CHARS:
+        return f"{kind} matching '{searched}'"
+    return f"matching {kind}"
+
+
 def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
     """Markdown answer built straight from tool data. Plain bullets and https links only."""
     asof = central(env.get("retrieved_at"))
@@ -235,6 +255,10 @@ def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
 
     if not env["ok"]:
         err = env.get("error") or {}
+        if err.get("code") == "ambiguous" and data.get("candidates"):
+            lines = "\n".join(_user_club(c, 80) for c in data["candidates"])
+            return (f"'{data.get('asked_for', '')}' could be more than one club on 312. Did you mean one of these "
+                    f"(as of {asof})?\n\n{lines}")
         if err.get("code") == "no_results" and data.get("close_matches"):
             lines = "\n".join(_user_club(c, 0) for c in data["close_matches"])
             return f"I couldn't find an exact match. These are the closest clubs on 312:\n\n{lines}"
@@ -252,7 +276,8 @@ def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
             return "\n\n".join(["That's everything I found for that search. "
                                  f"You can browse all events at {BROWSE['events']}"] + notes)
         if not data["events"]:
-            body = "I didn't find any matching events. Try a different day or topic, or browse https://312.iit.edu/events"
+            body = (f"I didn't find any {_matching('events', env)} {_span(data['window']).replace('**', '')}. "
+                    "Try a different day or topic, or browse https://312.iit.edu/events")
             return "\n\n".join([head, body] + notes)
         body, shown = _fit(lambda e, n: _user_event(e, n), data["events"], head, max_chars, (120, 60, 0))
         note, more = _range_note(shown, data, BROWSE["events"])
@@ -286,7 +311,7 @@ def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
         if not data["clubs"]:
             msg = (f"I couldn't find a club named '{data['no_exact_match']}' on 312. Check the spelling, or browse "
                    if data.get("no_exact_match") else
-                   "I didn't find any matching clubs. Try a broader interest word, or browse ")
+                   f"I didn't find any {_matching('clubs', env)}. Try a broader interest word, or browse ")
             return "\n\n".join([msg + BROWSE["clubs"]] + notes)
         body, shown = _fit(lambda c, n: _user_club(c, n), data["clubs"], head, max_chars, (160, 80, 0))
         note, more = _range_note(shown, data, BROWSE["clubs"])
@@ -298,6 +323,10 @@ def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
     # single club
     d = data
     out = [_user_club(d, 700)]
+    if d.get("matched_by") == "initials":
+        out.insert(0, f"'{d['asked_for']}' matches **{d['name']}** on 312:")
+    elif d.get("matched_by") == "typo":
+        out.insert(0, f"I couldn't find '{d['asked_for']}' exactly; the closest club on 312 is **{d['name']}**:")
     if not d.get("contact_name"):
         out.append("No contact person is listed for this club on 312; its page may list officers.")
     if d.get("membership_benefits"):

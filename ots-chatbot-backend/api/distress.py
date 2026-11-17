@@ -11,6 +11,9 @@ How a message is judged (`DistressCheck.check`), in this order:
   2. Hawk's last reply was the support reply or the follow-up:
        a clear OSL question (off-topic margin clearly on-topic) -> normal path (None)
        anything else ("ok", "thanks", "I'm fine", pushback, an off-topic request) -> the short follow-up
+     This is the margin rule. With the search picker on, the service decides instead (api/service.py: the picker
+     chose a search and the off-topic check allows it -> normal path, else the follow-up) and uses this rule
+     only when the picker is off or fails; the verdict says `after_support=True` for that.
   3. Otherwise -> None (the normal checks run)
 
 Tuned for recall: missing a crisis is worse than an extra support reply (the opposite of the off-topic check).
@@ -26,7 +29,7 @@ Measured on eval/distress (development set, 2026-11-16; CHATBOT_BEHAVIOR.md 4.15
 import logging
 import re
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -165,6 +168,10 @@ def is_support(text: str) -> bool:
 class DistressVerdict:
     reply: str | None   # the fixed text to send, or None = carry on with the normal checks
     reason: str         # which rule decided (for logs and tests; never the message)
+    # True when the message came right after the support reply / follow-up and is not distress itself. The
+    # service may then let the search picker decide (a real OSL question -> the normal path, anything else -> the
+    # follow-up); `reply` is the decision of the margin rule, used when the picker is off or failed.
+    after_support: bool = field(default=False, compare=False)
 
 
 class DistressCheck:
@@ -215,8 +222,8 @@ class DistressCheck:
         last_bot = next((t["text"] for t in reversed(history) if t["role"] == "bot"), None)
         if last_bot is not None and is_support(last_bot):
             if self._clear_osl_question(latest):
-                return DistressVerdict(None, "osl-question-after-support")
-            return DistressVerdict(FOLLOWUP_TEXT, "after-support")
+                return DistressVerdict(None, "osl-question-after-support", after_support=True)
+            return DistressVerdict(FOLLOWUP_TEXT, "after-support", after_support=True)
         return DistressVerdict(None, "no-distress")
 
     def _clear_osl_question(self, text: str) -> bool:
