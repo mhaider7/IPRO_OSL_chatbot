@@ -2,7 +2,9 @@
 
 Order for each message (`_plan`):
   1. distress check (api.distress): a fixed support text, before everything else, so a crisis message is never
-     routed to 312, given a fixed short reply, or refused;
+     routed to 312, given a fixed short reply, or refused. Right after the support reply, "ok" / "thanks" get the
+     fixed follow-up; anything else goes to the search picker (step 5): a search it chooses that the off-topic
+     check allows -> the normal path, otherwise the follow-up (never the refusal);
   2. lookups that stay rules: an event ID or rsvp link, "the second one" / "#3" (web_tools.router.rule_call);
   3. fixed replies for "thanks" / "got it" / "no thanks" (api.conversation);
   4. a first message that is clearly off-topic by the embeddings alone -> the fixed refusal, before any model;
@@ -25,7 +27,7 @@ import chromadb
 
 from api import routing
 from api.conversation import FIXED_REPLIES, retrieval_query, short_reply
-from api.distress import DistressCheck
+from api.distress import FOLLOWUP_TEXT, DistressCheck, DistressVerdict
 from api.guardrail import Guardrail, Verdict, refusal_text
 from api.schemas import ChatRequest, ChatResponse, Conversation, EscalationResponse
 from config.loader import Config
@@ -40,6 +42,7 @@ from web_tools.router import MORE, ToolCall, list_items, route as route_live_loo
 from web_tools.tools.registry import WebTools, get_default_tools
 
 logger = logging.getLogger("hawk")
+MAX_MORE_IN_A_ROW = 20   # "more" repeated this often still pages on (string work only; one picker call)
 
 
 @dataclass
@@ -48,7 +51,9 @@ class Plan:
     fixed: str | None = None
     calls: list[ToolCall] = field(default_factory=list)
     query: str = ""            # handbook search text (when there are no lookups)
-    refuse_if_empty: bool = False   # allowed only because of the 312 lookup: if it shows nothing, refuse after all
+    # Allowed only because of the 312 lookup: if the lookups then show nothing, send this text instead (the
+    # refusal, or right after a support reply the follow-up, which must never become the refusal). None = carry on.
+    if_empty: str | None = None
 
 
 class RagService:
@@ -69,13 +74,6 @@ class RagService:
                 (lambda text: guardrail.scores(text)["margin"]) if guardrail is not None else None,
             )
         self._distress = distress
-
-    # --- distress check (api/distress.py) ---------------------------------------------------------
-    def _support_reply(self, latest: str, history: list[dict]) -> str | None:
-        verdict = self._distress.check(latest, history)
-        if verdict.reply:
-            logger.info("distress check: fixed reply (%s)", verdict.reason)   # never the message itself
-        return verdict.reply
 
     # --- off-topic check (api/guardrail.py) ------------------------------------------------------
     def _verdict(self, latest: str, history: list[dict], call: ToolCall | None) -> Verdict:
@@ -163,22 +161,43 @@ class RagService:
     def _timeout(self) -> float:
         return float(self.config.search_picker.get("timeout_s", routing.DEFAULT_TIMEOUT_S))
 
-    def _first(self, latest: str, history: list[dict]) -> tuple[str | None, ToolCall | None]:
-        """Steps that need no model (so never wait for one): the support reply, then the kept lookup rules (an
+    def _first(self, latest: str, history: list[dict]) -> tuple[str | None, ToolCall | None, DistressVerdict | None]:
+        """Steps that need no model (so never wait for one): the distress check, then the kept lookup rules (an
         event ID or link, a list position), then the fixed short replies. Rules before the short replies, so
         "#2 thanks" after a list shows item 2. "more" is a rule here only when the search picker is off; with the
-        picker on it is resolved in `_choose` (it needs the picker's earlier search)."""
-        support = self._support_reply(latest, history)
-        if support:
-            return support, None
+        picker on it is resolved in `_choose` (it needs the picker's earlier search).
+
+        Last, the off-topic shortcut (embeddings only): a clearly off-topic first message gets the refusal here,
+        so it never waits for the model to load either.
+
+        Returns (fixed text, rule lookup, after_support). `after_support` = the message came right after the
+        support reply and the search picker decides in `_plan` whether it gets the normal path or the follow-up."""
+        verdict = self._distress.check(latest, history)
+        if verdict.after_support:
+            if short_reply(latest, history):   # "ok", "thanks", "no thanks": nothing to look up
+                logger.info("distress check: fixed reply (after-support, short reply)")
+                return FOLLOWUP_TEXT, None, None
+            if self._picker_on():
+                return None, None, verdict
+            # picker off: the margin rule decides (a clear OSL question -> normal path, else the follow-up)
+        if verdict.reply:
+            logger.info("distress check: fixed reply (%s)", verdict.reason)   # never the message itself
+            return verdict.reply, None, None
         try:
             rule = rule_call(latest, history, self._known_clubs(), include_more=not self._picker_on())
         except Exception:
             logger.exception("lookup rule failed")
             rule = None
         if rule is not None:
-            return None, rule
-        return self._fixed_reply(latest, history), None
+            return None, rule, None
+        fixed = self._fixed_reply(latest, history)
+        if fixed:
+            return fixed, None, None
+        shortcut = getattr(self._guardrail, "clearly_off_first", None)   # test fakes may not have it
+        if shortcut is not None and shortcut(latest, history):
+            logger.info("off-topic check: refuse (clearly-off, before the search picker)")
+            return self._refusal(), None, None   # obvious off-topic first messages never reach a model
+        return None, None, None
 
     def _more_call(self, latest: str, history: list[dict], depth: int = 0) -> ToolCall | None:
         """"more" with the search picker on: the next page of the search that produced Hawk's last list. That
@@ -193,7 +212,9 @@ class RagService:
             return None
         prev_text, prev_history = history[-2]["text"], history[:-2]
         prior = None
-        if depth < 3 and MORE.match(prev_text):   # "more" again: page on from the previous "more"
+        # "more" again: page on from the previous "more". Each step back is string work only; the one picker call
+        # happens at the first non-"more" message. (A limit of 3 stopped the paging at the 5th "more", review 2.)
+        if depth < MAX_MORE_IN_A_ROW and MORE.match(prev_text):
             prior = self._more_call(prev_text, prev_history, depth + 1)
         if prior is None:
             prev = routing.pick(prev_text, prev_history, self.config.model, self._known_clubs(), timeout=self._timeout())
@@ -204,40 +225,57 @@ class RagService:
         args["offset"] = args.get("offset", 0) + (len(list_items(bot)) or args.get("limit", 6))
         return ToolCall(prior.name, args)
 
-    def _choose(self, latest: str, history: list[dict]) -> routing.Pick:
+    def _choose(self, latest: str, history: list[dict], after_support: bool = False) -> routing.Pick:
         """Which search runs: the search picker, or (picker off / failed) the regex router."""
         known = self._known_clubs()
         if self._picker_on():
             more = self._more_call(latest, history)
             if more is not None:
                 return routing.Pick(calls=[more], source="rule", reason="more")
-            return routing.pick(latest, history, self.config.model, known, timeout=self._timeout())
+            return routing.pick(latest, history, self.config.model, known, timeout=self._timeout(),
+                                after_support=after_support)
         router = self._live_call(latest, history)
         return routing.fallback_pick(latest, history, known, None, "search picker off", router)
 
     def _plan(self, latest: str, history: list[dict], first=None) -> Plan:
-        fixed, rule = first if first is not None else self._first(latest, history)
+        fixed, rule, after_support = first if first is not None else self._first(latest, history)
         if fixed:
             return Plan(fixed=fixed)
-        shortcut = getattr(self._guardrail, "clearly_off_first", None)   # test fakes may not have it
-        if rule is None and shortcut is not None and shortcut(latest, history):
-            logger.info("off-topic check: refuse (clearly-off, before the search picker)")
-            return Plan(fixed=self._refusal())   # obvious off-topic first messages never reach a model
-        pick = routing.Pick(calls=[rule], source="rule") if rule else self._choose(latest, history)
+        # right after the support reply the picker's second try has its own wording (see routing.pick)
+        pick = (routing.Pick(calls=[rule], source="rule") if rule
+                else self._choose(latest, history, after_support=after_support is not None))
+        if after_support is not None:
+            # Right after the support reply: a real OSL question gets the normal path, anything else the follow-up
+            # (user's decisions, 2026-11-17): normal if the search picker chose a search OR the margin rule calls it
+            # a clear OSL question (the margin rule never let a "follow-up" turn through in any run; it recovers
+            # questions gemma keeps asking back about, review 2 B1). If the picker failed, the margin rule alone.
+            by_picker = pick.source == "model" and bool(pick.calls or pick.handbook_query)
+            by_margin = after_support.reply is None
+            if not (by_picker or by_margin):
+                logger.info("distress check: fixed reply (after-support, %s)",
+                            "search picker: no search, margin: not clear" if pick.source == "model"
+                            else "margin rule")
+                return Plan(fixed=FOLLOWUP_TEXT)
+            logger.info("distress check: after support -> normal path (%s)",
+                        "+".join(n for n, ok in (("search picker", by_picker), ("margin rule", by_margin)) if ok))
         calls = pick.calls if self._tools() is not None else []   # 312 lookups switched off: handbook only
         # Only in direct mode does a 312 lookup show nothing but 312's own data; only then may it lift a refusal.
         verdict = self._verdict(latest, history, calls[0] if calls and self._direct() else None)
         if verdict.decision == "refuse":
-            return Plan(fixed=self._refusal())   # before any lookup, search or model
+            # never the off-topic refusal right after the support reply: the follow-up instead (C2c rule)
+            return Plan(fixed=FOLLOWUP_TEXT if after_support is not None else self._refusal())
         if calls:
-            return Plan(calls=calls, refuse_if_empty=verdict.reason == "312-lookup")
+            if_empty = None
+            if verdict.reason == "312-lookup":   # never the refusal right after the support reply (review 2, B2)
+                if_empty = FOLLOWUP_TEXT if after_support is not None else self._refusal()
+            return Plan(calls=calls, if_empty=if_empty)
         # "none" (a greeting, a reaction) still searches with today's text, so a wrong "none" is no worse than before
         return Plan(query=pick.handbook_query or retrieval_query(latest, history))
 
     def _load_before_picker(self, first) -> bool | None:
         """Load the model before the search picker runs, so a cold start isn't counted against its time limit.
         Only when the picker will run (no fixed text, no rule). Returns what Ollama said (True after loading)."""
-        fixed, rule = first
+        fixed, rule, _ = first
         if fixed or rule is not None or not self._picker_on():
             return None
         loaded = model_loaded(self.config.model)
@@ -269,8 +307,8 @@ class RagService:
         if plan.fixed:
             return ChatResponse(reply=plan.fixed, sources=[])
         live, live_sources = self._run_lookups(plan.calls) if plan.calls else (None, [])
-        if plan.calls and not live and plan.refuse_if_empty:
-            return ChatResponse(reply=self._refusal(), sources=[])   # the lookup was the only reason to allow it
+        if plan.calls and not live and plan.if_empty:
+            return ChatResponse(reply=plan.if_empty, sources=[])   # the lookup was the only reason to allow it
         if plan.calls and live and self._direct():
             return ChatResponse(reply=live, sources=live_sources)
         query = plan.query or retrieval_query(latest, history)
@@ -308,7 +346,7 @@ class RagService:
         latest, history = self._parse(request)
         loaded = None
         first = self._first(latest, history)   # distress / rules / short replies first: never wait for a model
-        fixed, rule = first
+        fixed, rule, _ = first
         if not fixed and rule is None and self._picker_on():
             loaded = model_loaded(self.config.model)
             if loaded is False:   # None = Ollama unreachable: say nothing
@@ -329,8 +367,8 @@ class RagService:
                     texts.append(text)
                     live_sources += [s for s in sources if s not in live_sources]
             live = "\n\n".join(texts) if texts else None
-            if not live and plan.refuse_if_empty:   # the lookup was the only reason to allow it
-                yield from self._fixed_lines(self._refusal())
+            if not live and plan.if_empty:   # the lookup was the only reason to allow it
+                yield from self._fixed_lines(plan.if_empty)
                 return
             if live and self._direct():
                 for piece in self._chunks_of_text(live):

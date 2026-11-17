@@ -133,6 +133,18 @@ def test_asking_back_gets_one_more_try_told_not_to_ask():
     assert p.family == "events" and len(sent) == 2 and routing.NUDGE in sent[1] and routing.NUDGE not in sent[0]
 
 
+def test_right_after_the_support_reply_the_second_try_has_no_search_default():
+    sent = []
+
+    def ask(messages, model, timeout):
+        sent.append(messages[0]["content"])
+        return {"content": "I'm sorry, I didn't mean to repeat myself. What would you like to talk about?",
+                "tool_calls": None}
+    p = routing.pick("why do you keep saying that", [], "gemma4:e4b", today=MON, ask=ask, after_support=True)
+    assert p.family == "none" and len(sent) == 2
+    assert routing.NUDGE_AFTER_SUPPORT in sent[1] and "call search_handbook" not in sent[1]
+
+
 def test_a_short_text_reply_is_accepted_as_no_search_without_another_try():
     calls = []
 

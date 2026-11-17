@@ -87,6 +87,13 @@ NUDGE = ("\n\nYour last reply asked the student a question instead of calling a 
          "with the student's question written as a complete search. Call no tool only for a greeting, thanks, a "
          "question about what you can do, a reaction that asks for nothing new, or a request unrelated to student "
          "organizations.")
+# The second try right after the support reply (988 / crisis line): no "if unsure, search" default there, because
+# a reaction to the support message ("why do you keep saying that") is a real reason for no search.
+NUDGE_AFTER_SUPPORT = ("\n\nYour last reply asked the student a question instead of calling a tool. Your previous "
+                       "message to the student was a support message. If the student's new message asks about "
+                       "student organizations, events, clubs or OSL, call the tool that fits now; do not ask. If "
+                       "it reacts to the support message (a feeling, a complaint, 'why', wanting to talk), call "
+                       "no tool.")
 
 HANDBOOK_TOOL = {"type": "function", "function": {
     "name": "search_handbook", "description": "Search the OSL student organization handbook.",
@@ -245,8 +252,10 @@ def _describe(calls: list[ToolCall], handbook: str | None) -> str:
 
 
 def pick(latest: str, history: list[dict] | None, model: str, known: set[str] | None = None,
-         today: date | None = None, timeout: float = DEFAULT_TIMEOUT_S, ask=None) -> Pick:
-    """Never raises. `ask(messages, model, timeout) -> message` is the model call (tests pass a fake)."""
+         today: date | None = None, timeout: float = DEFAULT_TIMEOUT_S, ask=None, after_support: bool = False) -> Pick:
+    """Never raises. `ask(messages, model, timeout) -> message` is the model call (tests pass a fake).
+    `after_support=True` (right after the support reply): the second try uses NUDGE_AFTER_SUPPORT, which has no
+    "if unsure, search" default (that pushed "why do you keep saying that" into a handbook search)."""
     history = history or []
     today = today or datetime.now(CHI).date()
     try:
@@ -260,7 +269,8 @@ def pick(latest: str, history: list[dict] | None, model: str, known: set[str] | 
         message = (ask or ask_model)(messages, model, timeout)
         if not message.get("tool_calls") and asks_back(message.get("content") or ""):
             # gemma asks "What date range?" instead of searching, despite the prompt: once more, told not to ask
-            messages[0] = {**messages[0], "content": messages[0]["content"] + NUDGE}
+            nudge = NUDGE_AFTER_SUPPORT if after_support else NUDGE
+            messages[0] = {**messages[0], "content": messages[0]["content"] + nudge}
             message = (ask or ask_model)(messages, model, max(0.1, timeout - (time.perf_counter() - t0)))
         secs = time.perf_counter() - t0
         calls, handbook, note = read_calls(message, latest)

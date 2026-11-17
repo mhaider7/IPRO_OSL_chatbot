@@ -157,6 +157,109 @@ def test_chat_loads_the_model_before_the_picker(monkeypatch):
     assert order[:3] == ["loaded?", "load", "pick"]
 
 
+# ---- right after the support reply (R Part 3) ---------------------------------------------------------------
+from api.distress import FOLLOWUP_TEXT, SUPPORT_TEXT  # noqa: E402
+
+AFTER_SUPPORT = [{"role": "user", "text": "i've been feeling really down lately"},
+                 {"role": "bot", "text": SUPPORT_TEXT}]
+
+
+def test_after_support_a_search_the_check_allows_gets_the_normal_path(monkeypatch, no_answer_model):
+    svc, guard, sent = make(monkeypatch, [[tool("search_handbook", query="how to get a new club approved")]],
+                            mode="llm")
+    plan = svc._plan("How do I get approved?", AFTER_SUPPORT)
+    assert plan.fixed is None and plan.query == "how to get a new club approved" and len(sent) == 1
+
+
+def test_after_support_no_search_gets_the_follow_up(monkeypatch, no_answer_model):
+    svc, guard, _ = make(monkeypatch, [[]])   # the picker calls no tool ("you don't get it")
+    assert svc._plan("you don't get it", AFTER_SUPPORT).fixed == FOLLOWUP_TEXT
+    assert guard.seen == []
+
+
+def test_after_support_a_refusal_becomes_the_follow_up(monkeypatch, no_answer_model):
+    svc, guard, _ = make(monkeypatch, [[tool("search_handbook", query="cookie recipe")]], guard=Guard("refuse"))
+    assert svc._plan("give me a cookie recipe", AFTER_SUPPORT).fixed == FOLLOWUP_TEXT
+
+
+def test_after_support_short_replies_get_the_follow_up_without_the_picker(monkeypatch, no_answer_model):
+    svc, _, sent = make(monkeypatch, [[tool("search_handbook", query="x")]])
+    for text in ("ok", "thanks", "no thanks"):
+        assert svc._plan(text, AFTER_SUPPORT).fixed == FOLLOWUP_TEXT, text
+    assert sent == []
+
+
+def test_after_support_distress_again_gets_the_support_text_without_the_picker(monkeypatch, no_answer_model):
+    svc, _, sent = make(monkeypatch, [[tool("search_handbook", query="x")]])
+    assert svc._plan("I still want to end my life", AFTER_SUPPORT).fixed == SUPPORT_TEXT and sent == []
+
+
+def test_after_support_a_failed_picker_leaves_it_to_the_margin_rule(monkeypatch, no_answer_model):
+    def broken(messages, model, timeout):
+        raise TimeoutError
+    svc, _, _ = make(monkeypatch, [])
+    monkeypatch.setattr(routing, "ask_model", broken)
+    svc._distress._on_margin = lambda text: -0.3   # clearly an OSL question by the margin
+    assert svc._plan("How do I reserve a room for our meeting?", AFTER_SUPPORT).fixed is None
+    svc._distress._on_margin = lambda text: 0.0
+    assert svc._plan("hmm", AFTER_SUPPORT).fixed == FOLLOWUP_TEXT
+
+
+def test_after_support_the_margin_rule_can_also_open_the_normal_path(monkeypatch, no_answer_model):
+    # review 2, B1: gemma keeps asking back ("which club?") on a real question; the margin rule calls it clear
+    svc, _, _ = make(monkeypatch, [[], []])   # no tool on both tries
+    svc._distress._on_margin = lambda text: -0.3
+    plan = svc._plan("Can our club still get funding this semester?", AFTER_SUPPORT)
+    assert plan.fixed is None and plan.query   # normal path, handbook search with today's text
+
+
+def test_after_support_a_lookup_that_shows_nothing_gets_the_follow_up_not_the_refusal(monkeypatch, no_answer_model):
+    # review 2, B2: picker -> 312 lookup, the check says refuse -> allowed by the lookup -> the lookup fails
+    svc, _, _ = make(monkeypatch, [[tool("search_events", query="cookies")]] * 2, guard=Guard("refuse"))
+    monkeypatch.setattr(svc, "_run_live", lambda call: (None, []))
+    events = stream(svc, "cookie events?", AFTER_SUPPORT)
+    assert reply(events) == FOLLOWUP_TEXT
+    resp = svc.chat(ChatRequest(messages=[*AFTER_SUPPORT, {"role": "user", "text": "cookie events?"}]))
+    assert resp.reply == FOLLOWUP_TEXT
+
+
+def test_after_support_through_the_stream(monkeypatch):
+    # "ok" after the support reply: the follow-up, no model loading, no picker; an OSL question: load, then pick
+    order = []
+    monkeypatch.setattr(service_module, "model_loaded", lambda m: order.append("loaded?") or False)
+    monkeypatch.setattr(service_module, "load_model", lambda m: order.append("load") or True)
+    monkeypatch.setattr(service_module, "retrieve", lambda c, q: order.append(f"search:{q}") or [])
+
+    def answer(**kw):
+        order.append("answer")
+        yield "Answer."
+    monkeypatch.setattr(service_module, "stream_answer", answer)
+    svc, _, sent = make(monkeypatch, [[tool("search_handbook", query="how to reserve a room")]], mode="llm")
+    events = stream(svc, "ok", AFTER_SUPPORT)
+    assert reply(events) == FOLLOWUP_TEXT and order == [] and sent == []
+    events = stream(svc, "how do we reserve a room?", AFTER_SUPPORT)
+    assert [e["stage"] for e in events if "stage" in e] == ["loading", "searching", "writing"]
+    assert order == ["loaded?", "load", "search:how to reserve a room", "answer"] and len(sent) == 1
+
+
+def test_a_shortcut_refusal_never_waits_for_the_model_to_load(monkeypatch, no_answer_model):
+    monkeypatch.setattr(service_module, "model_loaded", lambda m: (_ for _ in ()).throw(AssertionError("no load")))
+    svc, _, sent = make(monkeypatch, [], guard=Guard(clearly_off=True))
+    events = stream(svc, "write me a poem about the ocean")
+    assert is_refusal(reply(events)) and [e for e in events if "stage" in e] == [] and sent == []
+
+
+def test_more_keeps_paging_past_the_fifth_time(monkeypatch, no_answer_model):
+    svc, _, sent = make(monkeypatch, [[tool("search_clubs", query="music")]])
+    page = ("Here are clubs on 312:\n\n" + "\n".join(f"- **C{i}** — x. [312 page](https://312.iit.edu/c{i}/)"
+                                                     for i in range(5)))
+    hist = [{"role": "user", "text": "music clubs?"}, {"role": "bot", "text": page}]
+    for _ in range(6):
+        hist += [{"role": "user", "text": "more"}, {"role": "bot", "text": page}]
+    plan = svc._plan("more", hist)
+    assert plan.calls[0].args["offset"] == 35 and len(sent) == 1   # 7 pages of 5 shown; one picker call
+
+
 def test_a_malformed_tool_call_falls_back():
     p = routing.pick("How do I start a club?", [], "gemma4:e4b",
                      ask=lambda m, model, t: {"content": "", "tool_calls": ["junk"]})
