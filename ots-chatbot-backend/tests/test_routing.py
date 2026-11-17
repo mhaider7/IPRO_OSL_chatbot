@@ -209,10 +209,20 @@ def run(service, text, history=()):
     return [json.loads(line) for line in service.chat_stream(req)]
 
 
-def test_the_service_searches_the_handbook_with_the_pickers_text(monkeypatch, pipeline):
+def test_a_later_message_searches_with_the_pickers_text_and_todays_text_merged(monkeypatch, pipeline):
+    merged = []
+    monkeypatch.setattr(service_module, "retrieve_merged", lambda c, qs: merged.append(qs) or [])
     ask, _ = fake(tool("search_handbook", query="funding for a new student club"))
     run(svc_with(monkeypatch, ask), "Funding?", [u("How do I start a club?"), b("Fill in the form.")])
-    assert pipeline["queries"] == ["funding for a new student club"] and pipeline["model"] == 1
+    assert merged == [["funding for a new student club", "Funding?"]] and pipeline["model"] == 1
+
+
+def test_a_first_message_searches_with_the_students_own_words(monkeypatch, pipeline):
+    # R Part 4 + review 3: the picker's rewrites of standalone questions found worse passages for 6 A1 questions,
+    # so a first message is searched exactly as today, even when the picker wrote a text
+    ask, _ = fake(tool("search_handbook", query="event submission deadline"))
+    run(svc_with(monkeypatch, ask), "How far in advance do I need to submit an event?")
+    assert pipeline["queries"] == ["How far in advance do I need to submit an event?"]
 
 
 def test_none_still_searches_with_todays_text(monkeypatch, pipeline):
@@ -259,3 +269,34 @@ def test_no_results_say_what_was_searched_when_it_is_short():
     clubs = {"ok": True, "retrieved_at": None, "searched": "knitting",
              "data": {"clubs": [], "total_matches": 0, "returned": 0, "offset": 0}}
     assert render_for_user(clubs).startswith("I didn't find any clubs matching 'knitting'.")
+
+
+# ---- the merged handbook search (retrieval/chroma_setup.retrieve_merged) -------------------------------------
+class FakeCollection:
+    """query() answers per text from a fixed table: text -> [(doc, path, distance), ...]."""
+    def __init__(self, table):
+        self.table = table
+
+    def query(self, query_texts, n_results):
+        rows = [self.table[q][:n_results] for q in query_texts]
+        return {"documents": [[d for d, _, _ in r] for r in rows],
+                "metadatas": [[{"path": p, "page_start": 1} for _, p, _ in r] for r in rows],
+                "distances": [[x for _, _, x in r] for r in rows]}
+
+
+def test_merged_search_keeps_the_closest_three_of_both_texts_each_once():
+    from retrieval.chroma_setup import retrieve_merged
+    col = FakeCollection({
+        "event submission deadline": [("A", "Events > Deadlines", 0.59), ("B", "Events > Forms", 0.60),
+                                      ("C", "Funding", 0.70)],
+        "How far in advance do I need to submit an event?": [("D", "Events > Lead time", 0.54),
+                                                             ("A", "Events > Deadlines", 0.58),
+                                                             ("E", "Rooms", 0.80)]})
+    got = retrieve_merged(col, ["event submission deadline", "How far in advance do I need to submit an event?"])
+    assert [c["text"] for c in got] == ["D", "A", "B"]   # by distance, A once, E dropped (> 0.75)
+
+
+def test_merged_search_with_one_text_is_the_plain_search():
+    from retrieval.chroma_setup import retrieve_merged
+    col = FakeCollection({"x": [("A", "p", 0.5), ("B", "q", 0.9)]})
+    assert [c["text"] for c in retrieve_merged(col, ["x", "x"])] == ["A"]

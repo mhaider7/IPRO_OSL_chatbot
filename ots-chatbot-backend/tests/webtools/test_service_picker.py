@@ -168,7 +168,9 @@ def test_after_support_a_search_the_check_allows_gets_the_normal_path(monkeypatc
     svc, guard, sent = make(monkeypatch, [[tool("search_handbook", query="how to get a new club approved")]],
                             mode="llm")
     plan = svc._plan("How do I get approved?", AFTER_SUPPORT)
-    assert plan.fixed is None and plan.query == "how to get a new club approved" and len(sent) == 1
+    # a later message: the picker's text and today's text, merged (R Part 4 fix)
+    assert plan.fixed is None and plan.queries == ["how to get a new club approved", "How do I get approved?"]
+    assert len(sent) == 1
 
 
 def test_after_support_no_search_gets_the_follow_up(monkeypatch, no_answer_model):
@@ -210,7 +212,7 @@ def test_after_support_the_margin_rule_can_also_open_the_normal_path(monkeypatch
     svc, _, _ = make(monkeypatch, [[], []])   # no tool on both tries
     svc._distress._on_margin = lambda text: -0.3
     plan = svc._plan("Can our club still get funding this semester?", AFTER_SUPPORT)
-    assert plan.fixed is None and plan.query   # normal path, handbook search with today's text
+    assert plan.fixed is None and plan.queries == ["Can our club still get funding this semester?"]   # today's text
 
 
 def test_after_support_a_lookup_that_shows_nothing_gets_the_follow_up_not_the_refusal(monkeypatch, no_answer_model):
@@ -229,6 +231,7 @@ def test_after_support_through_the_stream(monkeypatch):
     monkeypatch.setattr(service_module, "model_loaded", lambda m: order.append("loaded?") or False)
     monkeypatch.setattr(service_module, "load_model", lambda m: order.append("load") or True)
     monkeypatch.setattr(service_module, "retrieve", lambda c, q: order.append(f"search:{q}") or [])
+    monkeypatch.setattr(service_module, "retrieve_merged", lambda c, qs: order.append(f"search:{qs[0]}") or [])
 
     def answer(**kw):
         order.append("answer")

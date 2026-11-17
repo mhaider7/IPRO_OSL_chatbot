@@ -36,7 +36,7 @@ from llm.ollama_client import (
     citation_sources, generate_answer, load_model, model_loaded,
     stream_answer, warm_up_in_background,
 )
-from retrieval.chroma_setup import EMBEDDING_FUNCTION, retrieve
+from retrieval.chroma_setup import EMBEDDING_FUNCTION, retrieve, retrieve_merged
 from web_tools.render import render_for_prompt, render_for_user
 from web_tools.router import MORE, ToolCall, list_items, route as route_live_lookup, rule_call
 from web_tools.tools.registry import WebTools, get_default_tools
@@ -50,7 +50,7 @@ class Plan:
     """What happens for one message: a fixed text, or 312 lookups, or a handbook search."""
     fixed: str | None = None
     calls: list[ToolCall] = field(default_factory=list)
-    query: str = ""            # handbook search text (when there are no lookups)
+    queries: list[str] = field(default_factory=list)   # handbook search text(s), when there are no lookups
     # Allowed only because of the 312 lookup: if the lookups then show nothing, send this text instead (the
     # refusal, or right after a support reply the follow-up, which must never become the refusal). None = carry on.
     if_empty: str | None = None
@@ -269,8 +269,26 @@ class RagService:
             if verdict.reason == "312-lookup":   # never the refusal right after the support reply (review 2, B2)
                 if_empty = FOLLOWUP_TEXT if after_support is not None else self._refusal()
             return Plan(calls=calls, if_empty=if_empty)
-        # "none" (a greeting, a reaction) still searches with today's text, so a wrong "none" is no worse than before
-        return Plan(query=pick.handbook_query or retrieval_query(latest, history))
+        return Plan(queries=self._handbook_queries(latest, history, pick))
+
+    @staticmethod
+    def _handbook_queries(latest: str, history: list[dict], pick: routing.Pick) -> list[str]:
+        """The text(s) the handbook is searched with.
+        - "none" (a greeting, a reaction) or the regex router: today's text, so a wrong "none" is no worse.
+        - A first message: today's text (= the student's own words), even if the picker wrote one. The picker's
+          rewrites of standalone questions ("event submission deadline") found worse passages for 6 of A1's
+          questions and better for 4 (R Part 4 + review 3, CHATBOT_BEHAVIOR.md 4.36-4.37).
+        - A later message: the picker's standalone text AND today's text, merged ("Funding?" needs the picker's
+          "funding for a new club"; a standalone question mid-conversation keeps its own words' passages)."""
+        today = retrieval_query(latest, history)
+        if pick.handbook_query and history and pick.handbook_query != today:
+            return [pick.handbook_query, today]
+        return [today]
+
+    def _search(self, queries: list[str]) -> list[dict]:
+        if len(queries) == 1:
+            return retrieve(self.collection, queries[0])
+        return retrieve_merged(self.collection, queries)
 
     def _load_before_picker(self, first) -> bool | None:
         """Load the model before the search picker runs, so a cold start isn't counted against its time limit.
@@ -311,8 +329,8 @@ class RagService:
             return ChatResponse(reply=plan.if_empty, sources=[])   # the lookup was the only reason to allow it
         if plan.calls and live and self._direct():
             return ChatResponse(reply=live, sources=live_sources)
-        query = plan.query or retrieval_query(latest, history)
-        chunks = [] if live else retrieve(self.collection, query)   # live data replaces handbook noise
+        queries = plan.queries or [retrieval_query(latest, history)]
+        chunks = [] if live else self._search(queries)   # live data replaces handbook noise
         extra = {"live_context": live} if live else {}
         answer = generate_answer(
             question=latest,
@@ -380,8 +398,8 @@ class RagService:
                 return
         else:
             yield json.dumps({"stage": "searching"}) + "\n"
-        query = plan.query or retrieval_query(latest, history)
-        chunks = [] if live else retrieve(self.collection, query)
+        queries = plan.queries or [retrieval_query(latest, history)]
+        chunks = [] if live else self._search(queries)
         if loaded is None and model_loaded(self.config.model) is False:   # None = Ollama unreachable: say nothing
             yield json.dumps({"stage": "loading"}) + "\n"
             load_model(self.config.model)
