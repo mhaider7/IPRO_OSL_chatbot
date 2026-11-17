@@ -74,6 +74,8 @@ class RagService:
                 (lambda text: guardrail.scores(text)["margin"]) if guardrail is not None else None,
             )
         self._distress = distress
+        logger.info("search picker: %s", f"on, time limit {self._timeout():g} s" if self._picker_on()
+                    else "off (the keyword router decides)")
 
     # --- off-topic check (api/guardrail.py) ------------------------------------------------------
     def _verdict(self, latest: str, history: list[dict], call: ToolCall | None) -> Verdict:

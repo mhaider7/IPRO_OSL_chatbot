@@ -6,6 +6,7 @@ Docs are split into section-sized chunks:
 Documents with neither fall back to paragraph splitting.
 """
 import logging
+import os
 import re
 from bisect import bisect_right
 from dataclasses import dataclass, field
@@ -70,6 +71,28 @@ def fill_contacts(prompt: str, contact_email: str, contact_phone: str) -> str:
     return prompt.replace("{contact_email}", contact_email).replace("{contact_phone}", contact_phone)
 
 
+def search_picker_settings(raw: dict | None, env: dict | None = None) -> dict:
+    """`search_picker` from config.yaml, with per-laptop overrides from the environment, so a teammate on a slow
+    CPU-only laptop can change it without editing (and committing) config.yaml:
+      HAWK_SEARCH_PICKER=off|on        switch the search picker off / on
+      HAWK_PICKER_TIMEOUT_S=<seconds>  how long to wait for it before the keyword router decides
+    Invalid values are ignored (the config.yaml value stays)."""
+    env = os.environ if env is None else env
+    settings = dict(raw or {})
+    switch = (env.get("HAWK_SEARCH_PICKER") or "").strip().lower()
+    if switch in ("off", "0", "false", "no"):
+        settings["enabled"] = False
+    elif switch in ("on", "1", "true", "yes"):
+        settings["enabled"] = True
+    try:
+        timeout = float(env.get("HAWK_PICKER_TIMEOUT_S") or "")
+        if timeout > 0:
+            settings["timeout_s"] = timeout
+    except ValueError:
+        pass
+    return settings
+
+
 def load_config() -> Config:
     path = BASE / "config.yaml"
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -85,7 +108,7 @@ def load_config() -> Config:
         web_tools=raw.get("web_tools") or {},
         contact_email=contact_email,
         contact_phone=contact_phone,
-        search_picker=raw.get("search_picker") or {},
+        search_picker=search_picker_settings(raw.get("search_picker")),
     )
 
 

@@ -56,10 +56,16 @@ Questions like "any robotics clubs?", "free food this week?" or "tell me about e
 answered from live public data on the 312 (CampusGroups) platform. By default (`answer_mode: direct`)
 the lookup result is shown as the answer itself, with no model in between (a small local model
 dropped and invented items when asked to rephrase lists); set `answer_mode: llm` to let the
-model phrase it instead. The handbook is not searched on turns that use a live lookup. A small keyword router
-(`web_tools/router.py`) decides when to look something up; policy questions ("how do I start a
-club?", "how do I host an event?") stay with the handbook. The result is added to the prompt as a
-"Facts from 312.iit.edu" block, and its source is added to `sources`.
+model phrase it instead. The handbook is not searched on turns that use a live lookup. The search picker
+(below) decides when to look something up; policy questions ("how do I start a club?", "how do I host an
+event?") stay with the handbook. The result is added to the prompt as a "Facts from 312.iit.edu" block, and
+its source is added to `sources`.
+
+Club names are matched to the real 312 list (`web_tools/tools/clubs.py candidates()`): exact names,
+abbreviations built from each club's name ("ML" → Machine Learning), the same name written differently
+("formula one club"), small typos and names spelled the way they sound ("hawkuhpela" → Hawkapella). When several
+clubs fit ("ISA"), the student gets a "Did you mean…?" list of real names. The club lookup never offers a club that
+isn't on 312.
 
 - **Clubs**: parsed from `https://312.iit.edu/club_signup?view=all` (cached 12 h).
 - **Events**: parsed from the public iCal feed `https://312.iit.edu/ical/iit/ical_iit.ics` (cached
@@ -76,6 +82,44 @@ club?", "how do I host an event?") stay with the handbook. The result is added t
 - **Settings**: optional `web_tools:` block in `config.yaml` (TTLs, spacing); `enabled: false` turns it off.
 - **Tests**: `make test` runs everything offline against fixtures in `tests/fixtures/web/`. `make smoke`
   makes about 5 real requests to detect layout drift on 312.
+
+## Which search runs: the search picker
+
+For every message, one quick model call (`api/routing.py`) reads the conversation and picks the search: the
+handbook, the 312 club list, the 312 events calendar (a club and events together when the student asks for
+both), or none, and writes a complete search text (from real runs: "where do I get them stamped?" after a
+question about flyers → "flyer approval process"; "yes" to an offer about spending limits → "spending limits for
+expense claims"; "this weekend" → the right dates, from a calendar built in code). Code checks what it wrote with
+the tools' own argument classes.
+
+- **Fallback:** if that call fails or takes longer than `timeout_s` (5 s), the older keyword router
+  (`web_tools/router.py`) and follow-up rules (`api/conversation.py`) pick the search, as before. Two newer rules
+  apply either way: a 312 list shown as is may answer a message the off-topic check would refuse, and right after
+  a support (988) reply a refusal becomes the fixed follow-up. The server log shows both choices for every message:
+  `search picker: search_clubs [model] 0.30s | regex router: handbook`.
+- **Kept as rules** (no model): event IDs and links, "the second one" / "#3", "thanks" / "got it", the
+  distress check and a clearly off-topic first message.
+- **Handbook search text:** a first message is searched with the student's own words; a later message with the
+  picker's text and the student's text together (the 3 closest passages of both).
+- **Speed on a GPU:** 0.2-0.3 s per message (the answer starts ~0.4 s later than without it).
+- **On a CPU-only laptop the default 5 s is too short for some messages.** Measured on an Intel Core Ultra 9
+  laptop (slower laptops will take longer): the picker takes ~15 s on the first message of a session, 1-4 s on
+  later messages that search, and ~9-13 s on greetings, pushback and vague messages; answers take 10-45 s. With
+  5 s, those slower messages fall back to the keyword router, so you'd be testing a mix of the two. To test what
+  the GPU demo does, give the picker more time on your laptop without editing `config.yaml`:
+
+  ```powershell
+  $env:HAWK_PICKER_TIMEOUT_S = "30"     # PowerShell, before starting the server
+  ```
+  ```bash
+  export HAWK_PICKER_TIMEOUT_S=30       # macOS / Linux
+  ```
+
+  The server log says which setting is active at startup (`search picker: on, time limit 30 s`).
+- **Switching it off** (`HAWK_SEARCH_PICKER=off`, or `enabled: false` in `config.yaml`) is for troubleshooting:
+  to compare an answer with the old routing, or if the picker causes problems (for example with a different
+  model). The keyword router then picks every search. Don't use it to test the demo's answers: you'd be testing
+  the old routing.
 
 ## Embeddable widget
 

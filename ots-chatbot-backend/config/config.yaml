@@ -102,7 +102,9 @@ system_prompt: |
 
 # The search picker (api/routing.py): the model reads the conversation and picks the search (handbook, clubs,
 # events or none) and writes the search text. If its call fails or takes longer than timeout_s, the regex router
-# decides instead. enabled: false = the regex router only (e.g. on a slow CPU-only laptop).
+# decides instead. enabled: false = the regex router only (for troubleshooting or comparing with the old routing).
+# Per laptop, without editing this file: HAWK_PICKER_TIMEOUT_S=30 on a CPU-only laptop (see README), and
+# HAWK_SEARCH_PICKER=off|on.
 search_picker:
   enabled: true
   timeout_s: 5    # a ceiling, not a wait: ~2x the slowest call measured on the GPU (2.25 s; median 0.17 s)
