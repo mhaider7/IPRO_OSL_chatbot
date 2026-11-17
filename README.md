@@ -143,7 +143,9 @@ Hawk is a student-facing chatbot for the Illinois Tech Office of Student Life (O
 
 ## Model
 
-`config/config.yaml` sets the Ollama model (currently `llama3.2`) and the system prompt. Start Ollama and make sure the model exists (`ollama pull llama3.2`, or register a fine-tuned GGUF with `ollama create`). GGUF files are git-ignored; do not commit them.
+`config/config.yaml` sets the Ollama model (currently `gemma4:e4b`, since November 2026; before that `llama3.2`) and the system prompt. Start Ollama and make sure the model exists: `ollama pull gemma4:e4b` (a 6.6 GB download; about 5 GB of GPU memory when loaded; tested with Ollama 0.40.16). Older Ollama versions may not know gemma4. On a laptop without a GPU it runs on the CPU, much slower (about 19 s per answer on the laptop it was tested on). You can also register a fine-tuned GGUF with `ollama create`. GGUF files are git-ignored; do not commit them.
+
+gemma4 is a "thinking" model. Hawk sends it `think: false` (it checks each model's capabilities with Ollama once), so answers start right away and the off-topic check's one-word answer isn't spent on hidden reasoning.
 
 **Keeping the model loaded.** Loading the model takes a few seconds (about 4 on a GPU, 5 or more on a CPU), so Hawk loads it when the server starts and again (if needed) when someone opens the widget panel, and asks Ollama to keep it in memory for 60 minutes after the last request. Change that with `HAWK_OLLAMA_KEEP_ALIVE` (see `.env.example`), for example `2h`, or `-1` to keep it until Ollama restarts. While it works, the server reports what it is doing (searching the handbook, starting up, writing an answer) and the widget shows it in a small pill with a spinner until the reply starts.
 
