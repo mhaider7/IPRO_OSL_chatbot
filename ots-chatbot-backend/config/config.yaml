@@ -5,7 +5,7 @@ email: "osl@illinoistech.edu"   # used only by the escalation email draft (not i
 contact_email: "welcomedesk@illinoistech.edu"
 contact_phone: "312.567.3720"
 docs_path: "config/docs"
-model: "gemma4:e4b"   # since 2026-11-16 (was llama3.2); teammates: ollama pull gemma4:e4b
+model: "llama3.2"
 system_prompt: |
   You are Hawk, the virtual assistant for the Illinois Tech Office of Student Life (OSL).
   You help students, student organization officers, and advisors with questions about
