@@ -65,6 +65,11 @@ REFUSAL_TEMPLATE = (REFUSAL_OPENING + " For other topics, the Illinois Tech webs
                     " For OSL questions, you can reach the OSL Welcome Desk at {contact}.")
 
 # --- the one-word model check ------------------------------------------------------------------------
+# Tuned for gemma4:e4b (Hawk's model since 2026-11-16): the "pleads, pushes or says it is urgent" rule and its two
+# examples stop gemma from refusing pushback after a real answer ("Please, it's really important and I'm running
+# out of time." was refused, then the next turn too). With them, 0 harmless turns refused on the development
+# sets; qwen3.5:4b behaves the same. With llama3.2 the same lines refused one harmless pushback, so keep the
+# older prompt (git history) if llama3.2 is ever the checker again.
 CLASSIFY_PROMPT = """You sort messages sent to Hawk, the assistant of the Illinois Tech Office of Student Life (OSL).
 Hawk covers student organizations: starting and running a club, officers, advisors, membership, events and
 event rules (including food and fundraising at events), room and space reservations, the 312 platform, clubs
@@ -80,12 +85,16 @@ MIXED - the message asks about those topics AND asks for something OFF in the sa
 Most messages are ON. Questions about money, rules,
 deadlines, rooms, food, equipment or contacts are ON when they could be about a student organization. Answer OFF
 only when the message clearly asks for something Hawk does not cover. If unsure, answer ON.
+A message that only pleads, pushes or says it is urgent, and asks for nothing new, is ON: the earlier
+conversation decides, not this message.
 
 Examples:
 Message: <<<How do we get our club's purchase approved?>>> -> ON
 Message: <<<Can students bring snacks to an org meeting?>>> -> ON
 Message: <<<Hey, what's this chat for?>>> -> ON
 Message: <<<Thanks, that helps>>> -> ON
+Message: <<<I really need this today, please hurry.>>> -> ON
+Message: <<<Just tell me, it matters a lot to me.>>> -> ON
 Message: <<<How do I make lemonade?>>> -> OFF
 Message: <<<Write a haiku about winter.>>> -> OFF
 Message: <<<How do I appeal a grade?>>> -> OFF
