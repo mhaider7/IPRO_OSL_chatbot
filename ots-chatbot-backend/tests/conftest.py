@@ -28,3 +28,15 @@ from llm import ollama_client  # noqa: E402
 
 ollama_client.thinks_from_ollama = ollama_client.thinks   # the real one, for tests/test_thinking.py
 ollama_client.thinks = lambda model: ollama_client._thinking.get(model, False)
+
+# The search picker (api/routing.py) never calls a real Ollama in tests: its model call fails, so every test that
+# doesn't pass its own fake gets the fallback (the regex router + today's search text = the behavior the older
+# tests were written for). tests/test_routing.py passes fakes.
+import api.routing  # noqa: E402
+
+
+def _no_model_in_tests(messages, model, timeout):
+    raise ConnectionError("no Ollama in tests")
+
+
+api.routing.ask_model = _no_model_in_tests

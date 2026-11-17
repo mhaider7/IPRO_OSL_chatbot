@@ -384,6 +384,37 @@ def _refine_call(text: str, history: list[dict], known: set[str] | None, today: 
     return None
 
 
+def rule_call(message: str, history: list[dict] | None = None, known_club_names: set[str] | None = None,
+              today: date | None = None, include_more: bool = True) -> ToolCall | None:
+    """The lookups that stay rules even with the search picker (api/routing.py): an event ID or rsvp link, a
+    position in the list Hawk just showed ("the second one", "#3"), and "more" (the next page of the same search).
+    They need the exact ID, link or offset from Hawk's last reply, which code reads reliably. "more" re-reads the
+    previous message with the regex router, so it is only right when the regex router made that search: with the
+    search picker on, the service resolves "more" itself (include_more=False)."""
+    text = message.strip()
+    if not text or len(text) > 400:
+        return None
+    today = today or datetime.now(CHI).date()
+    history = history or []
+    m = EVENT_ID.search(text)
+    if m:
+        return ToolCall("get_event_details", {"event_id_or_url": m.group(1)},
+                        intent="location" if WHERE.search(text) else None)
+    if not history or history[-1]["role"] != "bot" or len(text.split()) > FOLLOWUP_MAX_WORDS:
+        return None
+    items = list_items(history[-1]["text"])
+    idx = ordinal_index(text)
+    if idx is not None and -len(items) <= idx < len(items):
+        return _item_call(items[idx], text)
+    if include_more and MORE.match(text):
+        prior = _prior(history, known_club_names, today)
+        if prior and prior.name in ("search_events", "search_clubs"):
+            args = dict(prior.args)
+            args["offset"] = args.get("offset", 0) + (len(items) or args.get("limit", EVENT_LIMIT))
+            return ToolCall(prior.name, args)
+    return None
+
+
 def route(message: str, known_club_names: set[str] | None = None, today: date | None = None,
           history: list[dict] | None = None) -> ToolCall | None:
     """`history` = the messages before `message` ({"role": "user"|"bot", "text": ...}); it lets short

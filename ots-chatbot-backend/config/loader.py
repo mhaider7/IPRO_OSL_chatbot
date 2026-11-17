@@ -35,6 +35,8 @@ class Config:
     # only the escalation draft uses.
     contact_email: str = ""
     contact_phone: str = ""
+    # The search picker (api/routing.py): {"enabled": bool, "timeout_s": float}. Off = the regex router only.
+    search_picker: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -83,6 +85,7 @@ def load_config() -> Config:
         web_tools=raw.get("web_tools") or {},
         contact_email=contact_email,
         contact_phone=contact_phone,
+        search_picker=raw.get("search_picker") or {},
     )
 
 

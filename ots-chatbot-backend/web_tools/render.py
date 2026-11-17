@@ -232,6 +232,17 @@ def _location_answer(d: dict) -> str:
     return f"No location is listed for **{t}**. See the event page: {d['url']}"
 
 
+SEARCHED_MAX_CHARS = 40   # quote short search texts ("AI", "Free Food"); a whole sentence reads badly
+
+
+def _matching(kind: str, env: dict) -> str:
+    """'events matching "AI"' when the lookup says what it searched for, else 'matching events'."""
+    searched = (env.get("searched") or "").strip()
+    if searched and len(searched) <= SEARCHED_MAX_CHARS:
+        return f"{kind} matching '{searched}'"
+    return f"matching {kind}"
+
+
 def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
     """Markdown answer built straight from tool data. Plain bullets and https links only."""
     asof = central(env.get("retrieved_at"))
@@ -265,7 +276,8 @@ def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
             return "\n\n".join(["That's everything I found for that search. "
                                  f"You can browse all events at {BROWSE['events']}"] + notes)
         if not data["events"]:
-            body = "I didn't find any matching events. Try a different day or topic, or browse https://312.iit.edu/events"
+            body = (f"I didn't find any {_matching('events', env)} {_span(data['window']).replace('**', '')}. "
+                    "Try a different day or topic, or browse https://312.iit.edu/events")
             return "\n\n".join([head, body] + notes)
         body, shown = _fit(lambda e, n: _user_event(e, n), data["events"], head, max_chars, (120, 60, 0))
         note, more = _range_note(shown, data, BROWSE["events"])
@@ -299,7 +311,7 @@ def render_for_user(env: dict, max_chars: int = MAX_CHARS) -> str:
         if not data["clubs"]:
             msg = (f"I couldn't find a club named '{data['no_exact_match']}' on 312. Check the spelling, or browse "
                    if data.get("no_exact_match") else
-                   "I didn't find any matching clubs. Try a broader interest word, or browse ")
+                   f"I didn't find any {_matching('clubs', env)}. Try a broader interest word, or browse ")
             return "\n\n".join([msg + BROWSE["clubs"]] + notes)
         body, shown = _fit(lambda c, n: _user_club(c, n), data["clubs"], head, max_chars, (160, 80, 0))
         note, more = _range_note(shown, data, BROWSE["clubs"])

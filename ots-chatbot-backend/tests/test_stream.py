@@ -139,10 +139,12 @@ def test_acknowledgements_get_a_fixed_reply_without_search_or_model(fake_ollama,
 
 
 def test_stream_loads_the_model_between_loading_and_writing(fake_ollama):
+    # Since the search picker (R, 2026-11-17) the model is loaded before the search: the picker is a model call,
+    # and a cold start must not count against its time limit. (Was: searching, loading, writing.)
     log, state = fake_ollama
     state["loaded"] = False
     events = run_stream(log)
-    assert stages(events) == ["searching", "loading", "writing"]
+    assert stages(events) == ["loading", "searching", "writing"]
     assert log.index("stage:loading") < log.index("load_model") < log.index("stage:writing")
     assert_one_kind_per_line(events)
 

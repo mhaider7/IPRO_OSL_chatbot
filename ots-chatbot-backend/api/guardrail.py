@@ -13,9 +13,9 @@ How a message is judged (`Guardrail.check`), in this order:
   5. Otherwise a one-word model call (ON / OFF / MIXED) on the message alone:
        ON -> allow;  MIXED -> mixed (refuse if there's no handbook material at all)
        OFF -> allow if it's a short follow-up right after a real answer ("why not?", "are you sure?"),
-              allow if the 312 router found a club search (a club list can't leak anything),
               mixed if the handbook has related material and the message is near an on-topic example,
               else refuse.
+  Any refusal -> allow when a 312 lookup was chosen for the message (see `check`).
   "mixed" = answer the OSL part and decline the rest (the answer model gets a note saying so).
 
 The embeddings: every message is turned into numbers with the same MiniLM model the handbook search uses, then
@@ -51,6 +51,7 @@ NEAR_ON = 0.65            # model said OFF, but this close to an on-topic exampl
 MIXED_HANDBOOK = 0.72     # mixed needs a handbook chunk at least this close (food words alone aren't enough)
 FOLLOWUP_WORDS = 8        # a follow-up ("why not?") is at most this many words ...
 FOLLOWUP_OFF = 0.60       # ... and no closer than this to any off-topic example
+LOOKUP_TOOLS = {"search_clubs", "get_club_details", "search_events", "get_event_details"}
 
 # --- fixed rule for greetings and questions about Hawk ---------------------------------------------
 GREETING = re.compile(r"^(hi|hello|hey|hiya|good (morning|afternoon|evening)|thanks|thank you( so much)?|"
@@ -180,14 +181,36 @@ class Guardrail:
         return {"on": on, "off": off, "margin": on - off, "handbook": float(self._handbook_distance(v))}
 
     def check(self, latest: str, history: list[dict] | None, router_call=None) -> Verdict:
-        """Never raises: if the check itself fails, the message is allowed (see the module docstring)."""
+        """Never raises: if the check itself fails, the message is allowed (see the module docstring).
+
+        `router_call` = the 312 lookup chosen for this message (by the search picker, or the regex router as its
+        fallback). A refusal is turned into "allow" when there is one: the student then sees only 312's own club
+        or event list, which can't leak an off-topic answer. That is what lets "baking?" or "Soccer?" after a club
+        search through (user's decision, 2026-11-17). The caller passes a lookup ONLY in direct mode (no model
+        writes the 312 answer), and sends the refusal after all if the lookup then shows nothing (api/service.py)."""
         try:
-            return self._check(latest, history or [], router_call)
+            verdict = self._check(latest, history or [])
         except Exception:
             logger.exception("off-topic check failed; allowing the message")
             return Verdict("allow", "check-failed")
+        if verdict.decision == "refuse" and getattr(router_call, "name", None) in LOOKUP_TOOLS:
+            return Verdict("allow", "312-lookup", verdict.scores)
+        return verdict
 
-    def _check(self, latest: str, history: list[dict], router_call) -> Verdict:
+    def clearly_off_first(self, latest: str, history: list[dict] | None) -> bool:
+        """The cheap shortcut (embeddings only, no model): a first message that is clearly off-topic. Refused before
+        the search picker runs, so obvious off-topic requests never reach a model that could choose a lookup for
+        them. Same rule as step 4 of `_check`. Never raises (False if the scores fail)."""
+        try:
+            if history and any(t["role"] == "bot" for t in history) or is_greeting_or_about_hawk(latest):
+                return False
+            s = self.scores(latest)
+            return s["margin"] > CLEARLY_OFF and s["handbook"] > NO_HANDBOOK and s["on"] > FAR_FROM_ON
+        except Exception:
+            logger.exception("off-topic shortcut failed; going on")
+            return False
+
+    def _check(self, latest: str, history: list[dict]) -> Verdict:
         if is_greeting_or_about_hawk(latest):
             return Verdict("allow", "greeting")
         last_bot = next((t["text"] for t in reversed(history) if t["role"] == "bot"), None)
@@ -215,8 +238,6 @@ class Guardrail:
         followup = (last_bot is not None and len(latest.split()) <= FOLLOWUP_WORDS and s["off"] > FOLLOWUP_OFF)
         if followup:
             return Verdict("allow", "follow-up", s)
-        if router_call is not None and getattr(router_call, "name", None) == "search_clubs":
-            return Verdict("allow", "club-search", s)
         if s["handbook"] <= MIXED_HANDBOOK and s["on"] < NEAR_ON:
             return Verdict("mixed", "model-off-near-on", s)
         return Verdict("refuse", "model-off", s)
