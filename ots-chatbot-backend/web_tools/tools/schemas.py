@@ -32,7 +32,7 @@ class SearchEventsArgs(_Args):
     event_type: str | None = Field(None, max_length=100, description="e.g. 'Social', 'Meeting', 'Career Preparation', 'Athletic/Sports'.")
     tags: list[str] | None = Field(None, max_length=10, description="Match ANY of these tags, e.g. ['Free Food'].")
     location_type: Literal["in_person", "online", "tbd", "hidden"] | None = None
-    time_from: time | None = Field(None, description="HH:MM Central. On today's date, ignore events that ended before this time (e.g. 17:00 for 'tonight').")
+    time_from: time | None = Field(None, description="HH:MM Central. Ignore single-day events that are over before this time of day, on any date (e.g. 17:00 for 'tonight' or 'tomorrow after 5pm').")
     limit: int = Field(10, ge=1, le=25)
     offset: int = Field(0, ge=0, le=500, description="Skip this many matches (for 'show more').")
 
