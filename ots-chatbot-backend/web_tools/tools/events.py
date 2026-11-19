@@ -128,13 +128,13 @@ def search(events: list[Event], *, query=None, date_from=None, date_to=None, cat
         pool = [e for e in pool
                 if not (local(e.end or e.start).date() == today and local(e.end or e.start) < cutoff)]
     if time_from is not None:
-        # "after 5pm" on any day: a single-day event must still be running at, or start after, that time.
+        # "after 5pm" on any day: a single-day event must still be running after that time (one that ends exactly then is out).
         # Multi-day listings and today's events (handled above) are left alone.
         def late_enough(e: Event) -> bool:
             last = local(e.end or e.start)
             if local(e.start).date() != last.date() or local(e.start).date() == today:
                 return True
-            return last.time() >= time_from
+            return last.time() > time_from
         pool = [e for e in pool if late_enough(e)]
 
     for wanted in (event_type, category):   # the feed has no separate "category"; both mean event_type

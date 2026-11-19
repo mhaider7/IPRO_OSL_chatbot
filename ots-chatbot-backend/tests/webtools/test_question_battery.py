@@ -173,6 +173,14 @@ def test_after_5pm_tomorrow_filters_by_time_and_ignores_time_words():
     assert titles(env) == ["Evening game"]
 
 
+def test_event_ending_exactly_at_the_cutoff_is_not_after_it():
+    t = event_tools(_ev(1, "20261111T220000Z", "20261111T230000Z", "Ends at five"),        # 4-5 PM
+                    _ev(2, "20261111T223000Z", "20261112T000000Z", "Ends at six"),         # 4:30-6 PM
+                    now=datetime(2026, 11, 10, 9, 0, tzinfo=CHI))
+    env = t.run("search_events", {"date_from": "2026-11-11", "date_to": "2026-11-11", "time_from": "17:00"})
+    assert titles(env) == ["Ends at six"]
+
+
 def test_past_days_still_searchable_when_asked_for():
     t = event_tools(_ev(1, "20260812T150000Z", "20260812T160000Z", "August thing"))
     assert titles(t.run("search_events", {"date_from": "2026-08-01", "date_to": "2026-08-31"})) == ["August thing"]
