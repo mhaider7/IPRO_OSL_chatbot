@@ -30,6 +30,7 @@ from pydantic import ValidationError
 from api.conversation import retrieval_query
 from llm import ollama_client
 from web_tools.router import CHI, CLUB_LIMIT, EVENT_LIMIT, WHERE, ToolCall, route
+from web_tools.tools.events import event_tokens
 from web_tools.tools.schemas import (
     TOOL_SPECS, GetClubDetailsArgs, GetEventDetailsArgs, SearchClubsArgs, SearchEventsArgs,
 )
@@ -77,9 +78,22 @@ CHOOSING THE TOOL
   both. Use the calendar below: a day name means the next such day from today, and the named weeks and the
   weekend are listed with their dates. "Today", "tonight" and "right now" mean today only (date_from = date_to
   = today). If no time is mentioned, use today to 14 days from today.
+- Time of day goes in time_from (HH:MM, 24-hour, Central): "after 5pm" or "this evening" -> "17:00", "after
+  6:30pm" -> "18:30". It works on any date, so "tomorrow after 5pm" is date_from = date_to = tomorrow plus
+  time_from "17:00". Never put time words (after, before, evening, 5pm) in query.
+- A kind of event goes in event_type or tags, not in query. event_type is one of: {event_types}. tags is any of:
+  {event_tags} (food: tags ["Free Food"]). Use query only for a topic or a club name ("robotics", "chess club").
+  Online events: location_type "online".
 
 CALENDAR
 {calendar}"""
+# The labels 312's public feed uses (checked 2026-11-19). event_type and tags are matched against these, so the
+# model must pick from them; a stale list only loses precision, because search also retries the label as text.
+EVENT_TYPES = ["Social", "Meeting", "Career Preparation", "Athletic/Sports", "Academic", "Spiritual",
+               "Chicagoland Experience", "Information Tabling", "Workshop", "Educational/Awareness", "Fundraiser",
+               "Cultural", "Online Webinar", "Lecture", "Training"]
+EVENT_TAGS = ["Free Food", "Honors College Experience", "New Students", "Prospective Students Welcome",
+              "Welcome Week", "FSL Recruitment"]
 # Asked once more, appended to the prompt, when the model asked the student a question instead of calling a tool.
 NUDGE = ("\n\nYour last reply asked the student a question instead of calling a tool. Do not ask: call the tool "
          "that fits your best reading of the message now. If you are unsure which tool fits, call search_handbook "
@@ -152,6 +166,8 @@ def calendar_lines(today: date, days: int = 21) -> str:
 
 def system_prompt(today: date) -> str:
     return (ROUTING_PROMPT.replace("{today}", f"{today:%A, %B} {today.day}, {today.year}")
+            .replace("{event_types}", ", ".join(f'"{t}"' for t in EVENT_TYPES))
+            .replace("{event_tags}", ", ".join(f'"{t}"' for t in EVENT_TAGS))
             .replace("{calendar}", calendar_lines(today)))
 
 
@@ -208,6 +224,8 @@ def read_calls(message: dict, latest: str) -> tuple[list[ToolCall], str | None, 
             continue
         if name in DEFAULT_LIMITS:
             args.setdefault("limit", DEFAULT_LIMITS[name])
+        if name == "search_events" and args.get("query") and not event_tokens(str(args["query"])):
+            del args["query"]   # only time/filler words ("after 5pm"): they are filters, not search text
         try:
             ARG_CLASSES[name].model_validate(args)
         except ValidationError:

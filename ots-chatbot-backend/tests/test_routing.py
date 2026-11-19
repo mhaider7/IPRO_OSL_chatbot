@@ -300,3 +300,42 @@ def test_merged_search_with_one_text_is_the_plain_search():
     from retrieval.chroma_setup import retrieve_merged
     col = FakeCollection({"x": [("A", "p", 0.5), ("B", "q", 0.9)]})
     assert [c["text"] for c in retrieve_merged(col, ["x", "x"])] == ["A"]
+
+
+# ---- date, time and type filters written by the model ------------------------------------------------------
+def test_the_prompt_tells_the_model_about_time_from_and_the_feeds_types():
+    text = routing.system_prompt(MON)
+    assert "time_from" in text and '"17:00"' in text
+    assert '"Career Preparation"' in text and '"Free Food"' in text
+    assert "{event_types}" not in text and "{event_tags}" not in text
+
+
+def test_date_time_and_type_filters_pass_through_unchanged():
+    p, _ = pick("career events tomorrow after 5pm", (), tool(
+        "search_events", date_from="2026-11-17", date_to="2026-11-17", time_from="17:00",
+        event_type="Career Preparation"))
+    assert p.source == "model" and len(p.calls) == 1
+    a = p.calls[0].args
+    assert (a["date_from"], a["time_from"], a["event_type"]) == ("2026-11-17", "17:00", "Career Preparation")
+    assert "query" not in a
+
+
+def test_time_words_the_model_leaves_in_query_are_dropped():
+    p, _ = pick("events tomorrow after 5pm", (), tool(
+        "search_events", query="events after 5pm", date_from="2026-11-17", date_to="2026-11-17", time_from="17:00"))
+    assert "query" not in p.calls[0].args and p.calls[0].args["time_from"] == "17:00"
+
+
+def test_a_real_topic_stays_in_query_next_to_the_filters():
+    p, _ = pick("robotics events tomorrow after 5pm", (), tool(
+        "search_events", query="robotics after 5pm", date_from="2026-11-17", date_to="2026-11-17",
+        time_from="17:00"))
+    assert p.calls[0].args["query"] == "robotics after 5pm"   # kept as written; event_tokens ignores the time words
+
+
+def test_a_follow_up_can_change_only_the_time_filter():
+    hist = [u("what's on tomorrow?"), b("Here's what's on 312 on Tue Nov 17: ...")]
+    p, seen = pick("anything later, after 7?", hist, tool(
+        "search_events", date_from="2026-11-17", date_to="2026-11-17", time_from="19:00"))
+    assert p.calls[0].args["time_from"] == "19:00"
+    assert seen["messages"][-2]["content"].startswith("Here's what's on 312")   # the earlier answer was sent along
