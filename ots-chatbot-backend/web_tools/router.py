@@ -193,6 +193,24 @@ def _strip_filters(text: str) -> str:
     return re.sub(MONTH_RE + r"(\s+\d{1,2}(?:st|nd|rd|th)?)?", " ", leftover, flags=re.I)
 
 
+AFTER_TIME = re.compile(r"\b(?:after|from|starting(?:\s+at)?|post)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
+
+
+def parse_time_after(text: str) -> str | None:
+    """'after 5pm' -> '17:00'; None if the message names no 'after <clock time>'."""
+    m = AFTER_TIME.search(text)
+    if not m:
+        return "17:00" if re.search(r"\b(tonight|after work|this evening|in the evening)\b", text, re.I) else None
+    h, mi, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+    if ap == "pm" and h < 12:
+        h += 12
+    elif ap == "am" and h == 12:
+        h = 0
+    elif not ap and 1 <= h <= 7:
+        h += 12     # "after 5" means evening
+    return f"{h:02d}:{mi:02d}" if h < 24 and mi < 60 else None
+
+
 def _event_call(text: str, today: date) -> ToolCall | None:
     tags = [tag for rx, tag in TAG_PHRASES if rx.search(text)]
     types = [ty for rx, ty in TYPE_PHRASES if rx.search(text)]
@@ -215,8 +233,8 @@ def _event_call(text: str, today: date) -> ToolCall | None:
     args: dict = {"limit": EVENT_LIMIT}   # small: a 3B model can't digest long lists
     if dates:
         args["date_from"], args["date_to"] = dates[0].isoformat(), dates[1].isoformat()
-    if re.search(r"\btonight\b", text, re.I):
-        args["time_from"] = "17:00"
+    if parse_time_after(text):
+        args["time_from"] = parse_time_after(text)
     if tags:
         args["tags"] = tags
     if types:
@@ -325,8 +343,8 @@ def _apply_event_filters(args: dict, text: str, dates, tags: list[str], types: l
         args["date_from"], args["date_to"] = dates[0].isoformat(), dates[1].isoformat()
         args.pop("time_from", None)
         changed = True
-    if re.search(r"\btonight\b", text, re.I):
-        args["time_from"] = "17:00"
+    if parse_time_after(text):
+        args["time_from"] = parse_time_after(text)
     if tags:
         args["tags"], changed = tags, True
     if types:

@@ -23,7 +23,10 @@ EVENT_STOPWORDS = STOPWORDS | {
     "at", "put", "run", "hosted", "hosting", "host", "organized", "sponsored", "available", "offered",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "weekday", "later",
     "mon", "tue", "wed", "thu", "fri", "sat", "sun", "around", "near", "tonite", "whats", "going",
+    "after", "before", "pm", "am", "noon", "midnight", "evening", "afternoon", "morning", "night", "o'clock",
+    "oclock", "starting", "starts", "start", "ending", "ends", "end", "until", "till", "since",
 }
+CLOCK_WORD = re.compile(r"^\d{1,2}(:\d\d)?\s*(am|pm|a\.m\.|p\.m\.)?$", re.I)   # "5pm", "5:30", "17"
 
 
 def event_tokens(query: str) -> list[str]:
@@ -31,7 +34,7 @@ def event_tokens(query: str) -> list[str]:
     query = query.replace("\u2019", "'")
     words = [w[:-2] if w.lower().endswith("'s") else w
              for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9+#&'-]*", query)]
-    return club_tokens(" ".join(w for w in words if w.lower() not in EVENT_STOPWORDS))
+    return club_tokens(" ".join(w for w in words if w.lower() not in EVENT_STOPWORDS and not CLOCK_WORD.match(w)))
 
 
 def local(dt: datetime) -> datetime:
@@ -124,6 +127,15 @@ def search(events: list[Event], *, query=None, date_from=None, date_to=None, cat
             cutoff = max(now, datetime.combine(today, time_from, tzinfo=CHI))
         pool = [e for e in pool
                 if not (local(e.end or e.start).date() == today and local(e.end or e.start) < cutoff)]
+    if time_from is not None:
+        # "after 5pm" on any day: a single-day event must still be running at, or start after, that time.
+        # Multi-day listings and today's events (handled above) are left alone.
+        def late_enough(e: Event) -> bool:
+            last = local(e.end or e.start)
+            if local(e.start).date() != last.date() or local(e.start).date() == today:
+                return True
+            return last.time() >= time_from
+        pool = [e for e in pool if late_enough(e)]
 
     for wanted in (event_type, category):   # the feed has no separate "category"; both mean event_type
         if wanted:

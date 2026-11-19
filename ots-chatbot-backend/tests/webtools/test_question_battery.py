@@ -28,6 +28,8 @@ EVENT_CASES = [
     ("anything going on tonight?", {"date_from": "2026-11-10", "date_to": "2026-11-10", "time_from": "17:00"}),
     ("is there anything to do tonight?", {"time_from": "17:00"}),
     ("what's happening tomorrow", {"date_from": "2026-11-11"}),
+    ("what events are happening tomorrow after 5pm?", {"date_from": "2026-11-11", "time_from": "17:00"}),
+    ("events friday after 6:30pm", {"time_from": "18:30"}),
     ("any events this weekend?", {"date_from": "2026-11-14", "date_to": "2026-11-15"}),
     ("events next week", {"date_from": "2026-11-16", "date_to": "2026-11-22"}),
     ("what events are in December?", {"date_from": "2026-12-01", "date_to": "2026-12-31"}),
@@ -160,6 +162,15 @@ def test_tonight_cutoff_hides_afternoon_events():
                     _ev(2, "20261111T010000Z", "20261111T030000Z", "Evening"), now=datetime(2026, 11, 10, 9, 0, tzinfo=CHI))
     env = t.run("search_events", {"date_from": "2026-11-10", "date_to": "2026-11-10", "time_from": "17:00"})
     assert titles(env) == ["Evening"]
+
+
+def test_after_5pm_tomorrow_filters_by_time_and_ignores_time_words():
+    t = event_tools(_ev(1, "20261111T170000Z", "20261111T180000Z", "Lunch talk"),          # 11-12 AM
+                    _ev(2, "20261112T010000Z", "20261112T030000Z", "Evening game"),        # 7-9 PM
+                    now=datetime(2026, 11, 10, 9, 0, tzinfo=CHI))
+    env = t.run("search_events", {"date_from": "2026-11-11", "date_to": "2026-11-11", "time_from": "17:00",
+                                  "query": "what events are happening after 5pm?"})
+    assert titles(env) == ["Evening game"]
 
 
 def test_past_days_still_searchable_when_asked_for():
