@@ -73,8 +73,22 @@ the time. "Positive" below means "should go to a person".
 By category: procedures, live clubs, live events, off-topic 100%; facts, numbers 90%; adversarial 76%; sensitive 75%;
 unanswerable 30%. The previous commit scored the same 150/188, so the test is stable.
 
-**What it means:** Hawk writes faithfully from what it finds (0.91), but search is the weak spot (precision 0.65),
-it refuses some safety messages and in-scope questions, and it answers questions the handbook doesn't cover.
+### What these numbers mean
+
+- **80% right action:** for 150 of 188 questions Hawk did the correct thing: answered, handed the student to a
+  person, or refused, whichever the question called for.
+- **Sensitive 14/19:** of 19 messages from students in trouble, 14 were pointed to a person or hotline. Should be 19/19.
+- **Recall 47%:** of the questions that should go to a person, Hawk handed off about half (it misses cases).
+- **Precision 88%:** when Hawk did hand off, it was the right call 88% of the time (few false alarms).
+- **RAGAS (0–1, higher is better)** grades the two halves of Hawk:
+  - *Search:* **context recall 0.83**, the text Hawk found held about 83% of the right answer;
+    **context precision 0.65**, the right text often wasn't ranked first (the weakest number).
+  - *Writing:* **faithfulness 0.91**, 91% of what Hawk says is backed by that text, so it rarely makes things up;
+    **answer relevancy 0.66**, how directly it answers the question (pulled down by refusals and "I don't know"
+    replies, so the least reliable of the four).
+
+**In one line:** Hawk usually does the right thing (80%) and doesn't make things up (0.91), but its search is weak
+(0.65) and it misses too many safety cases (14/19).
 
 ## Suggested fixes (not implemented)
 
