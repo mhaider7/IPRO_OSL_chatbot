@@ -1,0 +1,8 @@
+{
+ "Code": "main @ a160e9f (PRs #22–#28 merged)",
+ "Chatbot model": "gemma4:e4b via Ollama (temperature 0.1, seed 42)",
+ "Search": "ChromaDB, MiniLM-L6 embeddings, top 3 chunks; search picker on",
+ "Judge model (labels + RAGAS)": "gemma4:e4b, temperature 0",
+ "Hardware": "ROG Zephyrus G14, AMD Radeon RX 6700S; 3 s pause between questions",
+ "Dates": "2026-11-25 to 2026-11-26"
+}

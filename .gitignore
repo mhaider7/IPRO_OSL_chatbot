@@ -13,3 +13,6 @@ ots-chatbot-backend/.chroma/
 .playwright-mcp/
 notes.txt
 ots-chatbot-backend/.cache/
+.venv-eval/
+# rebuilt from raw.jsonl by dump_contexts.py; the raw answers and all grading outputs are kept
+evals/results/**/contexts.jsonl

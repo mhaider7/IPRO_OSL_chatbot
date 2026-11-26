@@ -1,0 +1,5 @@
+# Eval-only dependencies (RAGAS). Install in a separate venv so the chatbot's own venv stays unchanged:
+#   python -m venv .venv-eval
+#   .venv-eval/Scripts/pip install -r evals/requirements-eval.txt
+ragas==0.4.4
+langchain-ollama==1.1.0
