@@ -148,6 +148,15 @@ def test_event_lookup_by_id_or_url():
 
 
 @pytest.mark.parametrize("msg", [
+    "our event costs $1500 total and we already spent $400, how much more can we request from Finance Board",
+    "the event will cost 2000 dollars, how do I get funding",
+])
+def test_money_amount_is_not_an_event_id(msg):
+    call = ev(msg)
+    assert call is None or call.name != "get_event_details"
+
+
+@pytest.mark.parametrize("msg", [
     "How do I host an event?", "How do I register an event on 312?", "What are the event planning rules?",
     "How do I get approval for a campus event?", "Who pays event charges?", "How do I advertise my event?",
 ])
