@@ -86,7 +86,8 @@ TRAILING_NOUN = re.compile(r"\s+(?:club|team|organi[sz]ation|society|group)s?$",
 
 
 EVENT_NOUN = re.compile(r"\b(events?|happening|going on|things to do|activities|what'?s on|what is on)\b", re.I)
-EVENT_ID = re.compile(r"(?:rsvp\?id=|\bevent\b[^0-9\n]{0,15}#?)(\d{4,7})\b", re.I)
+# "$" is kept out of the gap and a money word can't follow, so "our event costs $1500" is not event #1500.
+EVENT_ID = re.compile(r"(?:rsvp\?id=|\bevent\b[^0-9$\n]{0,15}#?)(\d{4,7})\b(?!\s*(?:dollars?|usd|bucks)\b)", re.I)
 MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_name) if m}
 MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_abbr) if m})
 MONTH_RE = r"(" + "|".join(sorted(MONTHS, key=len, reverse=True)) + r")\b"
